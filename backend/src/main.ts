@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { RedisIoAdapter } from './events/adapters/redis-io.adapter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,6 +26,11 @@ async function bootstrap() {
     }),
   );
 
+  // Configuración del adaptador Socket.IO con Redis para escalamiento horizontal
+  const redisIoAdapter = new RedisIoAdapter(app);
+  await redisIoAdapter.connectToRedis();
+  app.useWebSocketAdapter(redisIoAdapter);
+
   // Documentación interactiva Swagger / OpenAPI
   const config = new DocumentBuilder()
     .setTitle('CHAMBA API')
@@ -40,4 +46,4 @@ async function bootstrap() {
   console.log(`🚀 CHAMBA Backend ejecutándose en: http://localhost:${port}/api/v1`);
   console.log(`📚 Documentación Swagger disponible en: http://localhost:${port}/api/docs`);
 }
-bootstrap();
+void bootstrap();

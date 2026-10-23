@@ -66,14 +66,12 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/
     - assets/images/
-    - chamba.png
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "chamba.png"
+  image_path: "assets/images/chamba.png"
   min_sdk_android: 21
 
   # To add custom fonts to your application, add a fonts section here,

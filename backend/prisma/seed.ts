@@ -74,6 +74,23 @@ async function main() {
     include: { workerProfile: true },
   });
 
+  // 4. Asignar coordenadas PostGIS para búsqueda geoespacial (SRID 4326: WGS 84)
+  try {
+    await prisma.$executeRaw`
+      UPDATE "worker_profiles"
+      SET "location" = ST_SetSRID(ST_MakePoint(-79.8398, -6.7725), 4326)
+      WHERE "user_id" = ${ana.id}
+    `;
+    await prisma.$executeRaw`
+      UPDATE "worker_profiles"
+      SET "location" = ST_SetSRID(ST_MakePoint(-79.9342, -6.8372), 4326)
+      WHERE "user_id" = ${carlos.id}
+    `;
+    console.log('📍 Coordenadas geoespaciales PostGIS asignadas para técnicos en Chiclayo y Pimentel');
+  } catch {
+    console.log('ℹ️ Extensión PostGIS aún no aplicada en base de datos. Saltando asignación espacial del seed.');
+  }
+
   console.log('✅ Seed completado con éxito:');
   console.log(` - Ana García (${ana.email}) con perfil de trabajadora: ${ana.workerProfile?.specialty}`);
   console.log(` - José Torres (${jose.email}) rol cliente`);

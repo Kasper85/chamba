@@ -11,7 +11,7 @@ Esta guía describe paso a paso cómo cualquier integrante del equipo de desarro
 3. [Instalación y Configuración de PostgreSQL](#3-instalación-y-configuración-de-postgresql)
 4. [Configuración de Variables de Entorno (`.env`)](#4-configuración-de-variables-de-entorno-env)
 5. [Configuración y Puesta a Punto del Backend (NestJS + Prisma)](#5-configuración-y-puesta-a-punto-del-backend-nestjs--prisma)
-6. [Configuración y Ejecución del Frontend (Flutter)](#6-configuración-y-ejecución-del-frontend-flutter)
+6. [Configuración y Ejecución del Frontend (Emulador y Celular Físico)](#6-configuración-y-ejecución-del-frontend-flutter)
 7. [Direcciones de Red y Endpoints Clave](#7-direcciones-de-red-y-endpoints-clave)
 8. [Pruebas de la API REST con Swagger y Postman](#8-pruebas-de-la-api-rest-con-swagger-y-postman)
 9. [Ejecución de Pruebas Automatizadas y Calidad](#9-ejecución-de-pruebas-automatizadas-y-calidad)
@@ -217,6 +217,59 @@ flutter run
 - Presiona `r` para **Hot Reload** (cambios instantáneos de interfaz).
 - Presiona `R` para **Hot Restart** (reinicio de estado).
 - Presiona `q` para detener la app.
+
+### 6.4 Despliegue e Instalación en Celular Android Físico (Cable USB)
+
+Si deseas probar la experiencia táctil real, el rendimiento y las animaciones en un smartphone Android conectado a tu PC por cable USB:
+
+#### Paso 1: Habilitar las Opciones de Desarrollador en el celular
+1. Abre **Ajustes** (Configuración) en tu teléfono.
+2. Ve a **Acerca del teléfono** o **Información del software**.
+3. Busca el campo **Número de compilación** (en Xiaomi/Redmi/Poco pulsa sobre *Versión de MIUI / HyperOS*).
+4. Toca repetidamente **7 veces** seguidas sobre ese texto hasta que aparezca el mensaje en pantalla: *"¡Ya eres desarrollador!"*.
+
+#### Paso 2: Activar la Depuración por USB
+1. Regresa a **Ajustes** y entra en **Sistema** ➔ **Opciones para desarrolladores** (o *Ajustes adicionales* ➔ *Opciones de desarrollador*).
+2. Activa el interruptor **Depuración por USB** (*USB Debugging*).
+3. *(Opcional para marcas como Xiaomi/Redmi)*: Activa también **Instalar vía USB** y **Depuración USB (ajustes de seguridad)**.
+
+#### Paso 3: Conectar el teléfono a la PC y autorizar la conexión
+1. Conecta tu celular a un puerto USB de la computadora usando un **cable de datos** de buena calidad (evita cables que solo cargan batería).
+2. En la pantalla del celular aparecerá un cuadro de diálogo: *"¿Permitir depuración por USB?"*.
+3. Marca la casilla **"Permitir siempre desde esta computadora"** y pulsa **Permitir** o **Aceptar**.
+
+#### Paso 4: Reconocer el dispositivo con Flutter
+En tu terminal de PowerShell en la raíz del proyecto, ejecuta:
+```powershell
+flutter devices
+```
+Verás la lista de dispositivos conectados con su identificador único (`device_id`). Por ejemplo:
+```text
+2 connected devices:
+
+Redmi Note 12 (mobile) • 19283746a5b6 • android-arm64 • Android 14 (API 34)
+Windows (desktop)      • windows      • windows-x64   • Microsoft Windows [Versión 10.0...]
+```
+*(En este ejemplo, el `device_id` es `19283746a5b6` o el nombre del dispositivo).*
+
+#### Paso 5: Redirección de red para consumir el Backend NestJS (`adb reverse`)
+Para que tu celular físico pueda conectarse a la API de NestJS que corre en tu PC (`localhost:3000`) sin problemas de firewall de Windows ni configuraciones complejas de Wi-Fi, ejecuta:
+```powershell
+adb reverse tcp:3000 tcp:3000
+```
+> 💡 **¿Qué hace `adb reverse`?**  
+> Enruta automáticamente cualquier petición que haga la app en el teléfono a `http://localhost:3000` directamente hacia tu computadora mediante el cable USB. Así, la app móvil se comunica con tu servidor NestJS local de forma instantánea y segura.
+
+#### Paso 6: Compilar y ejecutar en el celular físico
+Ejecuta el comando especificando el identificador de tu equipo:
+```powershell
+flutter run -d <device_id>
+```
+*Ejemplo real:*
+```powershell
+flutter run -d 19283746a5b6
+```
+Flutter compilará la APK en modo Debug, la transferirá al celular y la iniciará automáticamente en la pantalla de tu teléfono con soporte para **Hot Reload (`r`)**.
 
 ---
 
