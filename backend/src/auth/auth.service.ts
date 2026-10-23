@@ -50,7 +50,7 @@ export class AuthService {
         user: safeUser,
         accessToken,
       };
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException('Error al crear la cuenta de usuario');
     }
   }
