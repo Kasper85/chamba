@@ -1,17 +1,10 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_account.dart';
+import 'api_client.dart';
 
-class AuthApiException implements Exception {
-  final String message;
-  final int? statusCode;
-
-  const AuthApiException(this.message, [this.statusCode]);
-
-  @override
-  String toString() => message;
+/// Excepción de autenticación retrocompatible basada en ApiException.
+class AuthApiException extends ApiException {
+  const AuthApiException(super.message, [super.statusCode, super.data]);
 }
 
 class AuthResponse {
@@ -27,40 +20,19 @@ class AuthResponse {
 }
 
 class AuthApiService {
-  final String baseUrl;
-  final http.Client _client;
+  final ApiClient _apiClient;
+
+  String get baseUrl => _apiClient.baseUrl;
 
   AuthApiService({
     String? baseUrl,
     http.Client? client,
-  })  : baseUrl = baseUrl ?? _resolveDefaultBaseUrl(),
-        _client = client ?? http.Client();
-
-  static String _resolveDefaultBaseUrl() {
-    if (kIsWeb) {
-      return 'http://localhost:3000';
-    }
-    try {
-      if (Platform.isAndroid) {
-        // Android Emulator maps host localhost to 10.0.2.2
-        return 'http://10.0.2.2:3000';
-      }
-    } catch (_) {
-      // In case Platform is unavailable
-    }
-    return 'http://localhost:3000';
-  }
-
-  Map<String, String> _headers([String? token]) {
-    final headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    return headers;
-  }
+    ApiClient? apiClient,
+  }) : _apiClient = apiClient ??
+            ApiClient(
+              baseUrl: baseUrl,
+              httpClient: client,
+            );
 
   Future<AuthResponse> register({
     required String fullName,
@@ -70,7 +42,6 @@ class AuthApiService {
     String? district,
     String? address,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/auth/register');
     final payload = {
       'fullName': fullName.trim(),
       'email': email.trim().toLowerCase(),
@@ -81,40 +52,25 @@ class AuthApiService {
     };
 
     try {
-      final response = await _client.post(
-        uri,
-        headers: _headers(),
-        body: jsonEncode(payload),
+      final response = await _apiClient.post('/api/v1/auth/register', body: payload);
+      final body = response.data as Map<String, dynamic>;
+      final user = UserAccount.fromJson(body['user'] as Map<String, dynamic>);
+      final token = body['accessToken'] as String;
+
+      return AuthResponse(
+        user: user,
+        accessToken: token,
+        message: body['message'] as String?,
       );
-
-      final body = _parseJson(response.body);
-
-      if (response.statusCode == 201) {
-        final user = UserAccount.fromJson(body['user'] as Map<String, dynamic>);
-        final token = body['accessToken'] as String;
-        return AuthResponse(
-          user: user,
-          accessToken: token,
-          message: body['message'] as String?,
-        );
-      } else if (response.statusCode == 409) {
+    } on ApiException catch (e) {
+      if (e.statusCode == 409) {
         throw AuthApiException(
-          body['message']?.toString() ?? 'El correo electrónico ya está registrado',
+          e.data is Map ? (e.data['message']?.toString() ?? 'El correo electrónico ya está registrado') : e.message,
           409,
-        );
-      } else {
-        throw AuthApiException(
-          _extractErrorMessage(body, 'Error al registrar el usuario'),
-          response.statusCode,
+          e.data,
         );
       }
-    } on SocketException {
-      throw const AuthApiException(
-        'No se pudo conectar con el servidor backend CHAMBA. Verifica que esté en ejecución en el puerto 3000.',
-      );
-    } catch (e) {
-      if (e is AuthApiException) rethrow;
-      throw AuthApiException('Error de conexión: $e');
+      throw AuthApiException(e.message, e.statusCode, e.data);
     }
   }
 
@@ -122,71 +78,39 @@ class AuthApiService {
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/auth/login');
     final payload = {
       'email': email.trim().toLowerCase(),
       'password': password,
     };
 
     try {
-      final response = await _client.post(
-        uri,
-        headers: _headers(),
-        body: jsonEncode(payload),
+      final response = await _apiClient.post('/api/v1/auth/login', body: payload);
+      final body = response.data as Map<String, dynamic>;
+      final user = UserAccount.fromJson(body['user'] as Map<String, dynamic>);
+      final token = body['accessToken'] as String;
+
+      return AuthResponse(
+        user: user,
+        accessToken: token,
+        message: body['message'] as String?,
       );
-
-      final body = _parseJson(response.body);
-
-      if (response.statusCode == 200) {
-        final user = UserAccount.fromJson(body['user'] as Map<String, dynamic>);
-        final token = body['accessToken'] as String;
-        return AuthResponse(
-          user: user,
-          accessToken: token,
-          message: body['message'] as String?,
-        );
-      } else if (response.statusCode == 401) {
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
         throw const AuthApiException('Correo electrónico o contraseña incorrectos', 401);
-      } else {
-        throw AuthApiException(
-          _extractErrorMessage(body, 'Error al iniciar sesión'),
-          response.statusCode,
-        );
       }
-    } on SocketException {
-      throw const AuthApiException(
-        'No se pudo conectar con el servidor backend CHAMBA. Verifica que esté en ejecución en el puerto 3000.',
-      );
-    } catch (e) {
-      if (e is AuthApiException) rethrow;
-      throw AuthApiException('Error de conexión: $e');
+      throw AuthApiException(e.message, e.statusCode, e.data);
     }
   }
 
   Future<UserAccount> getMe(String token) async {
-    final uri = Uri.parse('$baseUrl/api/v1/users/me');
-
     try {
-      final response = await _client.get(
-        uri,
-        headers: _headers(token),
-      );
-
-      final body = _parseJson(response.body);
-
-      if (response.statusCode == 200) {
-        return UserAccount.fromJson(body);
-      } else if (response.statusCode == 401) {
+      final response = await _apiClient.get('/api/v1/users/me', token: token);
+      return UserAccount.fromJson(response.data as Map<String, dynamic>);
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
         throw const AuthApiException('Sesión expirada o no autorizada', 401);
-      } else {
-        throw AuthApiException(
-          _extractErrorMessage(body, 'Error al consultar perfil de usuario'),
-          response.statusCode,
-        );
       }
-    } catch (e) {
-      if (e is AuthApiException) rethrow;
-      throw AuthApiException('Error al consultar perfil: $e');
+      throw AuthApiException(e.message, e.statusCode, e.data);
     }
   }
 
@@ -197,7 +121,6 @@ class AuthApiService {
     String? district,
     String? address,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/users/me');
     final payload = {
       if (fullName != null) 'fullName': fullName.trim(),
       if (phone != null) 'phone': phone.trim(),
@@ -206,25 +129,10 @@ class AuthApiService {
     };
 
     try {
-      final response = await _client.patch(
-        uri,
-        headers: _headers(token),
-        body: jsonEncode(payload),
-      );
-
-      final body = _parseJson(response.body);
-
-      if (response.statusCode == 200) {
-        return UserAccount.fromJson(body);
-      } else {
-        throw AuthApiException(
-          _extractErrorMessage(body, 'Error al actualizar perfil'),
-          response.statusCode,
-        );
-      }
-    } catch (e) {
-      if (e is AuthApiException) rethrow;
-      throw AuthApiException('Error al actualizar perfil: $e');
+      final response = await _apiClient.patch('/api/v1/users/me', body: payload, token: token);
+      return UserAccount.fromJson(response.data as Map<String, dynamic>);
+    } on ApiException catch (e) {
+      throw AuthApiException(e.message, e.statusCode, e.data);
     }
   }
 
@@ -235,7 +143,6 @@ class AuthApiService {
     String? district,
     bool isAvailable = true,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/worker-profile/me');
     final payload = {
       'bio': bio.trim(),
       'specialty': specialty.trim(),
@@ -244,43 +151,10 @@ class AuthApiService {
     };
 
     try {
-      final response = await _client.put(
-        uri,
-        headers: _headers(token),
-        body: jsonEncode(payload),
-      );
-
-      final body = _parseJson(response.body);
-
-      if (response.statusCode == 200) {
-        return WorkerProfileData.fromJson(body);
-      } else {
-        throw AuthApiException(
-          _extractErrorMessage(body, 'Error al guardar perfil de trabajador'),
-          response.statusCode,
-        );
-      }
-    } catch (e) {
-      if (e is AuthApiException) rethrow;
-      throw AuthApiException('Error al guardar perfil de trabajador: $e');
+      final response = await _apiClient.put('/api/v1/worker-profile/me', body: payload, token: token);
+      return WorkerProfileData.fromJson(response.data as Map<String, dynamic>);
+    } on ApiException catch (e) {
+      throw AuthApiException(e.message, e.statusCode, e.data);
     }
-  }
-
-  Map<String, dynamic> _parseJson(String text) {
-    try {
-      return jsonDecode(text) as Map<String, dynamic>;
-    } catch (_) {
-      return {'message': text};
-    }
-  }
-
-  String _extractErrorMessage(Map<String, dynamic> body, String fallback) {
-    final msg = body['message'];
-    if (msg is List) {
-      return msg.join(', ');
-    } else if (msg is String && msg.isNotEmpty) {
-      return msg;
-    }
-    return fallback;
   }
 }
