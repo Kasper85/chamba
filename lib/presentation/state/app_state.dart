@@ -12,8 +12,12 @@ import '../../data/services/api_client.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/location_api_service.dart';
 import '../../data/services/finance_api_service.dart';
+import '../../data/services/storage_api_service.dart';
+import '../../data/services/ai_api_service.dart';
 import '../../data/models/wallet_summary.dart';
+import '../../data/models/ai_diagnostic_result.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:typed_data';
 
 enum UserRole {
   client,
@@ -26,6 +30,8 @@ class AppState extends ChangeNotifier {
   late final AuthApiService _authApi;
   late final LocationApiService _locationApi;
   late final FinanceApiService _financeApi;
+  late final StorageApiService _storageApi;
+  late final AiApiService _aiApi;
 
   UserRole _currentRole = UserRole.client;
   final List<JobRequest> _jobs = List.from(MockData.initialJobs);
@@ -140,18 +146,68 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  StorageApiService get storageApi => _storageApi;
+  AiApiService get aiApi => _aiApi;
+
+  /// Ejecuta el flujo integral de Diagnóstico:
+  /// 1. Solicita URL prefirmada (GET /storage/upload-url)
+  /// 2. Sube los bytes a Cloudflare R2 vía PUT
+  ///    - Si falla la subida a R2, lanza una excepción: 'No se pudo subir la foto'
+  /// 3. Solicita diagnóstico a Gemini (POST /ai/diagnose)
+  /// Retorna AiDiagnosticResult con el source real ('gemini-2.5-flash' o motor de respaldo)
+  Future<AiDiagnosticResult> runAiDiagnosticFlow({
+    required Uint8List imageBytes,
+    required String filename,
+    String? prompt,
+  }) async {
+    // 1. Obtener URL prefirmada
+    PresignedUploadData presigned;
+    try {
+      presigned = await _storageApi.getPresignedUploadUrl(
+        filename: filename,
+        contentType: 'image/jpeg',
+        folder: 'diagnostics',
+        token: _authToken,
+      );
+    } catch (_) {
+      throw const ApiException('No se pudo subir la foto');
+    }
+
+    // 2. PUT directo a R2
+    final uploadSuccess = await _storageApi.uploadFileToPresignedUrl(
+      uploadUrl: presigned.uploadUrl,
+      bytes: imageBytes,
+      contentType: presigned.contentType,
+    );
+
+    if (!uploadSuccess) {
+      throw const ApiException('No se pudo subir la foto');
+    }
+
+    // 3. POST /ai/diagnose
+    return _aiApi.diagnose(
+      imageUrl: presigned.publicUrl,
+      prompt: prompt,
+      token: _authToken,
+    );
+  }
+
   AppState({
     ApiClient? apiClient,
     SessionStorage? sessionStorage,
     AuthApiService? authApi,
     LocationApiService? locationApi,
     FinanceApiService? financeApi,
+    StorageApiService? storageApi,
+    AiApiService? aiApi,
   })  : _sessionStorage = sessionStorage ?? SessionStorage(),
         _apiClient = apiClient ??
             ApiClient() {
     _authApi = authApi ?? AuthApiService(apiClient: _apiClient);
     _locationApi = locationApi ?? LocationApiService(apiClient: _apiClient);
     _financeApi = financeApi ?? FinanceApiService(apiClient: _apiClient);
+    _storageApi = storageApi ?? StorageApiService(apiClient: _apiClient);
+    _aiApi = aiApi ?? AiApiService(apiClient: _apiClient);
     _activeJobId = _jobs.first.id;
 
     // Prepopulate realistic notifications

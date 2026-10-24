@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -99,6 +101,95 @@ class _PostJobScreenState extends State<PostJobScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImageAndDiagnose(ImageSource source) async {
+    final picker = ImagePicker();
+    try {
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      final bytes = await picked.readAsBytes();
+      await _executeRealAiDiagnosticFlow(bytes, picked.name);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir la cámara o galería.'),
+            backgroundColor: Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _executeRealAiDiagnosticFlow(Uint8List bytes, String filename) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => const _AiScanningModalDialog(
+        scenarioName: 'Subiendo y analizando foto...',
+        icon: Icons.camera_enhance_rounded,
+        accentColor: Color(0xFF6366F1),
+      ),
+    );
+
+    try {
+      final result = await widget.appState.runAiDiagnosticFlow(
+        imageBytes: bytes,
+        filename: filename,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      final matchingCategory = JobCategory.defaultCategories.firstWhere(
+        (c) => c.name.toLowerCase().contains(result.category.toLowerCase()) ||
+               result.category.toLowerCase().contains(c.name.toLowerCase()),
+        orElse: () => _selectedCategory,
+      );
+
+      setState(() {
+        _selectedCategory = matchingCategory;
+        final prefix = _isSos ? '🚨 ' : '';
+        _titleController.text = '$prefix Reparación de ${result.category}';
+        _descriptionController.text = result.technicalDescription;
+        _detectedAiMaterials = List<String>.from(result.materialsNeeded);
+        _aiRecommendedPrice = _isSos ? (result.averagePrice * 1.35).roundToDouble() : result.averagePrice;
+        _proposedBudget = _aiRecommendedPrice;
+        _aiScenarioApplied = result.badgeLabel;
+        _aiPriceRange = result.formattedPrice;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.isAiGenerated
+                ? '✨ ${result.badgeLabel} completado con éxito'
+                : 'ℹ️ ${result.badgeLabel} aplicado',
+          ),
+          backgroundColor: result.isAiGenerated ? const Color(0xFF4F46E5) : const Color(0xFFD97706),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo subir la foto'),
+            backgroundColor: Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   void _showAiDiagnosisSelector() {
     showModalBottomSheet(
       context: context,
@@ -167,9 +258,46 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     ),
                   ],
                 ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _pickImageAndDiagnose(ImageSource.camera);
+                        },
+                        icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                        label: const Text('Tomar Foto', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF6366F1),
+                          side: const BorderSide(color: Color(0xFF6366F1)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _pickImageAndDiagnose(ImageSource.gallery);
+                        },
+                        icon: const Icon(Icons.photo_library_rounded, size: 18),
+                        label: const Text('Galería', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 18),
                 Text(
-                  'Selecciona una avería simulada para escanear:',
+                  'O selecciona una avería de prueba:',
                   style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
                 ),
                 const SizedBox(height: 12),
@@ -500,7 +628,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
                                     runSpacing: 4,
                                     children: [
                                       Text(
-                                        '✨ Diagnóstico Visual con IA',
+                                        _aiScenarioApplied ?? '✨ Diagnóstico Visual',
                                         style: AppTypography.bodyLgMedium.copyWith(
                                           color: Colors.white,
                                           fontWeight: FontWeight.w800,
