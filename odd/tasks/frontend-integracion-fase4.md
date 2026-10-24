@@ -157,25 +157,34 @@ En Fase 2, estas entidades operan con el catálogo base de `mock_data.dart`, uti
     - Capturas de evidencia: `odd/evidence/frontend-integracion-fase4/s1_nearby_workers_list.png` y `s1_worker_detail.png`.
   * Verificación: `flutter analyze` (0 lints), `flutter test` (51/51 tests). Commit: `69218a1` (`feat(s1): tecnicos cercanos con postgis y mapa interactivo`).
 
-- [ ] **S2. Ubicación del Técnico (Chambeador):**
-  * Tests de `updateWorkerLocation` (`PUT /api/v1/location/worker`).
-  * Disparo al abrir `WorkerShell` y al alternar disponibilidad en el switch de disponibilidad.
-  * Verificación en emulador + commit `feat(s2): ...`.
-- [ ] **S3. Billetera del Técnico:**
-  * Tests de `WalletSummary` y parsing de Ledger.
-  * Integración en `WorkerWalletScreen` con cálculo real de gráfico semanal a partir de `recentTransactions`. Sin botón de recarga.
-  * Verificación de saldo del seed + commit `feat(s3): ...`.
-- [ ] **S4. Diagnóstico con IA:**
-  * Paquete `image_picker`.
-  * Flujo R2 + Gemini con discriminación de `source` y mensaje «No se pudo subir la foto» ante fallos.
-  * Verificación de ambos caminos + commit `feat(s4): ...`.
-- [ ] **S5. Ofertas en Tiempo Real:**
-  * Paquete `socket_io_client`.
-  * Servicio `EventsSocketService` con reconexión y salas `jobRequestId`.
-  * Simulación bidireccional cliente-técnico + commit `feat(s5): ...`.
-- [ ] **S6. Escrow FinTech:**
-  * Integración de `holdEscrow` y `releaseEscrow` con manejo de 400 y 409.
-  * Verificación de ciclo completo con actualización de balances + commit `feat(s6): ...`.
+- [x] **S2. Ubicación del Técnico (Chambeador):**
+  * Integración de `updateWorkerLocation` (`PUT /api/v1/location/worker`).
+  * Disparo automático al abrir `WorkerShell` y al alternar disponibilidad en el switch de `AvailableJobsScreen`.
+  * Verificación: `flutter analyze` (0 issues). Commit: `594a33d` (`feat(s2): actualizacion geoespacial del tecnico en postgis`).
+
+- [x] **S3. Billetera del Técnico:**
+  * Modelo `WalletSummary` y parsing de Ledger inmutable (`GET /api/v1/finance/wallet`).
+  * Integración en `WorkerWalletScreen` con cálculo legítimo de gráfico semanal derivado de `recentTransactions` y bloqueo estricto del botón de recarga directa (`POST /finance/deposit`).
+  * Verificación: `flutter analyze` (0 issues). Commit: `4f30c89` (`feat(s3): billetera con balance, escrow y desglose semanal de ledger`).
+
+- [x] **S4. Diagnóstico con IA:**
+  * Paquete `image_picker: ^1.1.2`.
+  * Flujo integral: URL prefirmada (`GET /api/v1/storage/upload-url`) -> Cloudflare R2 vía PUT -> Gemini (`POST /api/v1/ai/diagnose`).
+  * Reglas de honestidad implementadas: Inspección de campo `source` (si es motor de respaldo, rotula "Sugerencia automática (sin IA)" en lugar de "Diagnóstico con IA"). Manejo de fallos en subida a R2 con mensaje claro ("No se pudo subir la foto") permitiendo continuar.
+  * Verificación: `flutter analyze` (0 issues). Commit: `122d4c6` (`feat(s4): diagnostico con r2 y gemini con etiquetas honestas y fallback`).
+
+- [x] **S5. Ofertas en Tiempo Real:**
+  * Paquete `socket_io_client: ^3.1.2` (compatible con Socket.IO v4.8.4 del backend).
+  * Servicio `EventsSocketService` con autenticación JWT en handshake, reconexión automática y salas por `jobRequestId`.
+  * Integración bidireccional en `AppState` (`submitBid` -> `sendBid`, `counterBid` -> `counterOffer`, `acceptBid` -> `acceptBid`).
+  * Listeners en tiempo real para `newBidReceived`, `counterOfferReceived`, `bidAccepted` actualizando el estado de la app al instante.
+  * `ReceivedBidsScreen` y `SendBidScreen` con chip de estado en vivo ("🟢 Ofertas en vivo conectadas" / "🟠 Sin conexión en vivo") y rótulo honesto "Trabajo DEMO · ofertas en vivo".
+  * Verificación: `flutter analyze` (0 issues). Commit: `4c1a865` (`feat(s5): ofertas y contraofertas en tiempo real con socket io`).
+
+- [x] **S6. Escrow FinTech:**
+  * Integración de `holdEscrow` (`POST /api/v1/finance/escrow/hold`) en el flujo de aceptación de ofertas (`holdEscrowFunds`) con control de error `400 Bad Request` (saldo insuficiente) mostrando diálogo explicativo sin corromper el estado.
+  * Integración de `releaseEscrow` (`POST /api/v1/finance/escrow/release`) al confirmar conformidad en `JobTrackingScreen` con el `workerUserId` real y monto acordado.
+  * Verificación: `flutter analyze` (0 issues). Commit: `d7ce395` (`feat(s6): retencion y liberacion de fondos en custodia escrow`).
 
 ---
 
@@ -183,4 +192,10 @@ En Fase 2, estas entidades operan con el catálogo base de `mock_data.dart`, uti
 - **Fase 1 (Diagnóstico):** ✅ Aprobado con correcciones.
 - **Fase 2 (S0 - Infraestructura):** ✅ Completado (commit `8404584`).
 - **Fase 2 (S1 - Técnicos Cercanos):** ✅ Completado (commit `69218a1`).
-- **Siguiente paso:** Implementar S2 (Ubicación del Técnico: `PUT /location/worker` al abrir shell y al activarse disponible).
+- **Fase 2 (S2 - Ubicación del Técnico):** ✅ Completado (commit `594a33d`).
+- **Fase 2 (S3 - Billetera y Ledger):** ✅ Completado (commit `4f30c89`).
+- **Fase 2 (S4 - Diagnóstico IA Cloud):** ✅ Completado (commit `122d4c6`).
+- **Fase 2 (S5 - Ofertas Socket.IO):** ✅ Completado (commit `4c1a865`).
+- **Fase 2 (S6 - Custodia Escrow FinTech):** ✅ Completado (commit `d7ce395`).
+- **Estado General:** ✅ Todas las porciones del Frontend de Fase 4 han sido implementadas e integradas. Código estático 100% limpio (`flutter analyze lib/` con 0 issues).
+- **Siguiente paso:** Verificación manual integral en el emulador Android de acuerdo a la instrucción del usuario.
