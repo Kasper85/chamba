@@ -11,6 +11,8 @@ import '../../data/services/session_storage.dart';
 import '../../data/services/api_client.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/location_api_service.dart';
+import '../../data/services/finance_api_service.dart';
+import '../../data/models/wallet_summary.dart';
 import 'package:geolocator/geolocator.dart';
 
 enum UserRole {
@@ -23,6 +25,7 @@ class AppState extends ChangeNotifier {
   final ApiClient _apiClient;
   late final AuthApiService _authApi;
   late final LocationApiService _locationApi;
+  late final FinanceApiService _financeApi;
 
   UserRole _currentRole = UserRole.client;
   final List<JobRequest> _jobs = List.from(MockData.initialJobs);
@@ -108,16 +111,47 @@ class AppState extends ChangeNotifier {
   String? get authToken => _authToken;
   bool get isAuthenticated => _currentUser != null && _authToken != null;
 
+  // Real Wallet State (Fase 4 FinTech Ledger)
+  WalletSummary? _walletSummary;
+  bool _isLoadingWallet = false;
+  String? _walletError;
+
+  WalletSummary? get walletSummary => _walletSummary;
+  bool get isLoadingWallet => _isLoadingWallet;
+  String? get walletError => _walletError;
+  FinanceApiService get financeApi => _financeApi;
+
+  Future<void> fetchWallet() async {
+    final token = _authToken;
+    if (token == null) return;
+
+    _isLoadingWallet = true;
+    _walletError = null;
+    notifyListeners();
+
+    try {
+      final summary = await _financeApi.getWallet(token: token);
+      _walletSummary = summary;
+    } catch (e) {
+      _walletError = e.toString();
+    } finally {
+      _isLoadingWallet = false;
+      notifyListeners();
+    }
+  }
+
   AppState({
     ApiClient? apiClient,
     SessionStorage? sessionStorage,
     AuthApiService? authApi,
     LocationApiService? locationApi,
+    FinanceApiService? financeApi,
   })  : _sessionStorage = sessionStorage ?? SessionStorage(),
         _apiClient = apiClient ??
             ApiClient() {
     _authApi = authApi ?? AuthApiService(apiClient: _apiClient);
     _locationApi = locationApi ?? LocationApiService(apiClient: _apiClient);
+    _financeApi = financeApi ?? FinanceApiService(apiClient: _apiClient);
     _activeJobId = _jobs.first.id;
 
     // Prepopulate realistic notifications
