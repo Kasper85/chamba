@@ -79,7 +79,10 @@ CREATE DATABASE chamba_db;
 -- 2. Conectarse a la nueva base de datos
 \c chamba_db;
 
--- 3. Crear el usuario de aplicación dedicado (reemplaza 'MiPasswordSeguro123!' por tu contraseña local)
+-- 3. Habilitar la extensión geoespacial PostGIS
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- 4. Crear el usuario de aplicación dedicado (reemplaza 'MiPasswordSeguro123!' por tu contraseña local)
 CREATE ROLE chamba_app WITH LOGIN PASSWORD 'MiPasswordSeguro123!';
 
 -- 4. Otorgar permisos sobre la base de datos y el esquema público
@@ -211,8 +214,12 @@ Espera unos segundos hasta que el emulador Android termine de encender en tu pan
 
 ### 6.3 Ejecutar la aplicación en el emulador
 ```powershell
-flutter run
+flutter run -d emulator-5554 --dart-define=API_BASE_URL=http://10.0.2.2:3000 --dart-define=USE_MOCKS=false
 ```
+> 💡 **Nota sobre las variables `--dart-define`:**  
+> - `API_BASE_URL=http://10.0.2.2:3000`: Le indica a la app que consuma el servidor NestJS local desde el emulador Android.
+> - `USE_MOCKS=false`: Desactiva los datos simulados y exige conexión real a la base de datos PostgreSQL, Cloudflare R2 y Gemini IA. Si la red falla, la app muestra un aviso de reintento en vez de caer a mocks en silencio.
+
 *Atajos útiles durante la ejecución:*
 - Presiona `r` para **Hot Reload** (cambios instantáneos de interfaz).
 - Presiona `R` para **Hot Restart** (reinicio de estado).
@@ -421,6 +428,26 @@ La aplicación ha sido auditada exhaustivamente para garantizar un diseño adapt
 - **Causa:** No creaste la base de datos `chamba_db` antes de correr las migraciones.
 - **Solución:** Entra a `psql -U postgres` y ejecuta `CREATE DATABASE chamba_db;`.
 
+### 🔴 Error: `The Android emulator exited with code 1 during startup`
+- **Causa:** El emulador se cerró abruptamente o ya está corriendo en segundo plano, dejando archivos de bloqueo (`.lock`) en el directorio del AVD.
+- **Solución:**
+  1. Si ya está corriendo, no necesitas levantarlo de nuevo (revisa tu barra de tareas o ejecuta `adb devices`).
+  2. Si está cerrado pero bloqueado, elimina los archivos `.lock` huérfanos en PowerShell:
+     ```powershell
+     Remove-Item "$env:USERPROFILE\.android\avd\Medium_Phone.avd\*.lock" -Recurse -Force
+     ```
+  3. Vuelve a iniciarlo con `flutter emulators --launch Medium_Phone`.
+
+### 🔴 Error: `Migration failed to apply: PostGIS extension`
+- **Causa:** La base de datos no tiene habilitada la extensión PostGIS requerida por la migración `20261020180000_enable_postgis_and_worker_location`.
+- **Solución:** Conéctate a `chamba_db` con `psql` como superusuario y ejecuta:
+  ```sql
+  \c chamba_db;
+  CREATE EXTENSION IF NOT EXISTS postgis;
+  ```
+  Luego ejecuta `npx prisma migrate deploy` nuevamente.
+
 ### 🔴 Error: `RenderFlex overflowed by X pixels`
 - **Causa:** Se introdujo un widget con ancho o altura fija dentro de una fila o columna sin envoltura flexible.
 - **Solución:** Consulta la suite de pruebas `test/presentation/responsive_layout_test.dart` y utiliza `Expanded`, `Flexible`, `Wrap` o `LayoutBuilder`.
+

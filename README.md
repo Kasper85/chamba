@@ -213,8 +213,10 @@ CHAMBA/
 - **Framework:** Flutter SDK `^3.13.5` + Dart.
 - **Gestión de Estado:** `ValueNotifier` reactivo centralizado en [`AppState`](file:///c:/Users/Julio/Desktop/Proyectos/CHAMBA/lib/presentation/state/app_state.dart).
 - **Seguridad en Dispositivo:** `flutter_secure_storage` para almacenamiento protegido de tokens JWT.
-- **Consumo HTTP:** `http` con decodificación UTF-8, manejo de timeouts y headers de autorización Bearer.
-- **Mapas y Geolocalización:** `flutter_map` (OpenStreetMap libre de costos) + `latlong2` + `geolocator`.
+- **Consumo HTTP y API:** [`ApiClient`](file:///c:/Users/Julio/Desktop/Proyectos/CHAMBA/lib/data/services/api_client.dart) desacoplado con inyección de Bearer tokens, intercepción 401 y flags `--dart-define`.
+- **Tiempo Real y WebSockets:** `socket_io_client` para negociación bidireccional en vivo (`sendBid`, `counterOffer`, `acceptBid`).
+- **Multimedia y Fotos:** `image_picker` integrado para captura de averías y subida directa a Cloudflare R2 con URL prefirmada.
+- **Mapas y Geolocalización:** `flutter_map` (OpenStreetMap) + `latlong2` + `geolocator` con soporte PostGIS nativo.
 - **Diseño y Tipografía:** `google_fonts` (Manrope para interfaz y DM Sans para datos/cifras) e `intl` (formato Soles S/.).
 
 ### Backend y Base de Datos
@@ -249,11 +251,11 @@ La interfaz ha sido sometida a una auditoría responsive para garantizar que **n
 
 ## 🚀 Inicio Rápido
 
-### 1. Iniciar el Backend
+### 1. Iniciar el Backend (NestJS + PostgreSQL/PostGIS)
 ```bash
 cd backend
 npm install
-# Asegúrate de configurar backend/.env a partir de .env.example
+# Configura backend/.env a partir de backend/.env.example
 npx prisma migrate deploy
 npx prisma db seed
 npm run start:dev
@@ -265,7 +267,12 @@ npm run start:dev
 ```bash
 # En la raíz del proyecto
 flutter pub get
-flutter run
+
+# Ejecutar en Emulador Android apuntando a la API local
+flutter run -d emulator-5554 --dart-define=API_BASE_URL=http://10.0.2.2:3000 --dart-define=USE_MOCKS=false
+
+# O para celular físico conectado por USB (previamente: adb reverse tcp:3000 tcp:3000)
+flutter run -d <device_id> --dart-define=API_BASE_URL=http://localhost:3000 --dart-define=USE_MOCKS=false
 ```
 
 ---
@@ -275,7 +282,7 @@ flutter run
 El proyecto cuenta con suites de pruebas verificadas en verde:
 
 ```bash
-# 1. Pruebas del Frontend Flutter (37 tests)
+# 1. Pruebas del Frontend Flutter
 flutter test
 
 # 2. Análisis estático del código Dart (0 errores)
@@ -295,18 +302,21 @@ npm run test
 
 Para profundizar en el trabajo con el repositorio, consulta la documentación dedicada:
 
-- 📖 **[HOW_TO_RUN.md](HOW_TO_RUN.md):** Manual completo paso a paso para clonar, configurar PostgreSQL en Windows, correr migraciones, vincular el emulador Android (`10.0.2.2:3000`) y compilar la APK debug.
+- 📖 **[HOW_TO_RUN.md](HOW_TO_RUN.md):** Manual completo paso a paso para clonar, configurar PostgreSQL y PostGIS en Windows, correr migraciones, vincular el emulador Android (`10.0.2.2:3000`) o celular físico, y compilar la APK debug.
 - 🤝 **[CONTRIBUTING.md](CONTRIBUTING.md):** Estándares de trabajo colaborativo para el equipo (ramas, Conventional Commits, Pull Requests, sincronización de Prisma sin perder datos y resolución de conflictos).
 
 ---
 
-## 🗺️ Roadmap y Próximas Fases
+## 🗺️ Roadmap y Fases Implementadas
 
 - [x] **Fase 1:** Arquitectura Flutter, 21 pantallas, estado reactivo `AppState`, backend NestJS, base de datos PostgreSQL, migraciones Prisma, autenticación JWT y optimización responsive.
-- [ ] **Fase 2:** Conexión completa de los endpoints de solicitudes de chambas, cotizaciones y negociación al backend NestJS.
-- [ ] **Fase 3:** WebSockets con Socket.io en NestJS para actualización bidireccional inmediata de cotizaciones y chat.
-- [ ] **Fase 4:** Integración de pasarela de pagos digitales (Yape / Plin) con custodia en garantía (Escrow) real.
-- [ ] **Fase 5:** Validación automatizada de identidad peruana (DNI RENIEC y antecedentes PNP).
+- [x] **Fase 2:** Búsqueda geoespacial con **PostGIS** (`ST_DWithin`) en backend y frontend, mapa interactivo y actualización de ubicación del chambeador.
+- [x] **Fase 3:** WebSockets con **Socket.IO** en NestJS y cliente Flutter para negociación bidireccional en tiempo real (`sendBid`, `counterOffer`, `acceptBid`) y salas dinámicas por solicitud.
+- [x] **Fase 4 (FinTech & Cloud IA):** 
+  - Pagos protegidos en custodia (**Escrow**) con transacciones ACID y Libro Mayor inmutable (`GET /finance/wallet`, `POST /finance/escrow/hold`, `POST /finance/escrow/release`).
+  - Diagnóstico asistido por IA multimodal (**Google Gemini 2.5 Flash**) y subida de imágenes a **Cloudflare R2** vía URLs prefirmadas.
+  - Integración total Frontend-Backend en Flutter con reglas de veracidad y honestidad de datos (sin sellos falsos, tarifas a convenir y source checks).
+- [ ] **Fase 5:** Validación automatizada de identidad peruana con RENIEC y antecedentes PNP.
 - [ ] **Fase 6:** Notificaciones Push nativas vía Firebase Cloud Messaging (FCM).
 
 ---

@@ -86,3 +86,6 @@ backups/
 
 # Antigravity & IDE scratch
 .system_generated/
+
+# ODD tasks & artifacts
+odd/

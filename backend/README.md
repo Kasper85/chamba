@@ -1,124 +1,124 @@
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <img src="../assets/images/chamba.png" alt="CHAMBA Logo" width="100" style="border-radius: 16px;" />
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+<h1 align="center">CHAMBA Backend — NestJS API & Microservicios 🇵🇪</h1>
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+<p align="center">
+  <strong>Servicios backend de alta concurrencia para CHAMBA Perú: Geolocalización PostGIS, FinTech con Libro Mayor inmutable y Custodia Escrow, WebSockets con Socket.IO, Cloudflare R2 y Diagnóstico Multimodal con Google Gemini 2.5 Flash.</strong>
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-## Description
+<p align="center">
+  <a href="https://nestjs.com"><img src="https://img.shields.io/badge/NestJS-12-E0234E?logo=nestjs&logoColor=white" alt="NestJS"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-PostGIS-336791?logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+  <a href="https://redis.io"><img src="https://img.shields.io/badge/Redis-7%2B-DC382D?logo=redis&logoColor=white" alt="Redis"></a>
+  <a href="https://socket.io"><img src="https://img.shields.io/badge/Socket.IO-v4.8-010101?logo=socketdotio&logoColor=white" alt="Socket.IO"></a>
+  <a href="https://aistudio.google.com"><img src="https://img.shields.io/badge/AI-Gemini%202.5%20Flash-8E75C2?logo=google&logoColor=white" alt="Gemini"></a>
+  <a href="https://www.cloudflare.com/products/r2/"><img src="https://img.shields.io/badge/Storage-Cloudflare%20R2-F38020?logo=cloudflare&logoColor=white" alt="R2"></a>
+</p>
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## 📌 Arquitectura Modular
 
-```bash
-$ npm install
+El backend se organiza en módulos de dominio desacoplados bajo `src/`:
+
+```text
+src/
+├── auth/                 # Registro, login, guards JWT, hashing bcrypt y decoradores
+├── location/             # Búsqueda espacial de técnicos con PostGIS y actualización de posición
+├── finance/              # FinTech: Billetera, Libro Mayor (Ledger) inmutable y custodia Escrow
+├── events/               # Gateway WebSockets con Socket.IO y adaptador Redis Pub/Sub
+├── storage/              # URLs prefirmadas y subida directa a Cloudflare R2 (AWS SDK v3)
+├── ai/                   # Diagnóstico multimodal con Google Gemini 2.5 Flash y fallback
+├── redis/                # Módulo global de conexión y utilidades Redis
+└── prisma/               # Servicio de base de datos con Prisma ORM
 ```
 
-## Compile and run the project
+---
 
+## 🚀 Inicio y Configuración Rápida
+
+### 1. Variables de Entorno
+Copia la plantilla y configura tus credenciales locales:
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+Variables clave en `.env`:
+* `DATABASE_URL`: `postgresql://chamba_app:tu_password@localhost:5432/chamba_db?schema=public`
+* `REDIS_HOST` y `REDIS_PORT`: Conexión al servidor Redis (por defecto `localhost:6379`).
+* `JWT_SECRET`: Llave criptográfica para firmas de tokens de sesión.
+* `GEMINI_API_KEY`: API Key de Google AI Studio para diagnóstico de averías.
+* `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`: Credenciales Cloudflare R2.
 
+### 2. Migraciones de Base de Datos
+Asegúrate de haber habilitado PostGIS en PostgreSQL (`CREATE EXTENSION IF NOT EXISTS postgis;` en `chamba_db`), luego ejecuta:
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npx prisma migrate deploy
+npx prisma db seed
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+### 3. Ejecutar el Servidor
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Modo desarrollo con auto-reload (watch)
+npm run start:dev
+
+# Modo producción
+npm run build
+npm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+* **API REST:** `http://localhost:3000/api/v1`
+* **Swagger Docs:** `http://localhost:3000/api/docs`
 
-## Observability
+---
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+## 🛠️ Endpoints Principales
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+| Módulo | Método / Ruta | Descripción | Auth |
+|---|---|---|---|
+| **Auth** | `POST /api/v1/auth/register` | Registro de nuevo usuario (Cliente / Técnico) | Pública |
+| **Auth** | `POST /api/v1/auth/login` | Login con credenciales, emite JWT Bearer | Pública |
+| **Auth** | `GET /api/v1/auth/me` | Obtener perfil y datos de sesión activa | JWT |
+| **Location** | `GET /api/v1/location/nearby` | Búsqueda geoespacial PostGIS por radio (`lat`, `lng`, `radiusKm`) | Pública |
+| **Location** | `PUT /api/v1/location/worker` | Actualizar coordenadas del técnico autenticado | JWT (Técnico) |
+| **Finance** | `GET /api/v1/finance/wallet` | Consulta de saldo disponible, en custodia y Libro Mayor | JWT |
+| **Finance** | `POST /api/v1/finance/escrow/hold` | Retener fondos en custodia al aceptar oferta | JWT (Cliente) |
+| **Finance** | `POST /api/v1/finance/escrow/release` | Liberar fondos de custodia al culminar el trabajo | JWT (Cliente) |
+| **Storage** | `GET /api/v1/storage/upload-url` | Generar URL prefirmada para subida a Cloudflare R2 | Pública |
+| **AI** | `POST /api/v1/ai/diagnose` | Diagnóstico técnico asistido por Gemini con imagen | Pública |
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+---
 
-To add it to this project:
+## ⚡ Eventos en Tiempo Real (Socket.IO Gateway)
+
+* **Namespace:** `'/'` (Puerto 3000)
+* **Autenticación:** Token JWT en handshake (`auth: { token: '...' }`).
+
+### Eventos Emitidos por Clientes:
+* `joinJobRoom`: `{ jobRequestId: string }` — Unirse a la sala de una solicitud.
+* `leaveJobRoom`: `{ jobRequestId: string }` — Salir de la sala.
+* `sendBid`: `{ jobRequestId, amount, message, ... }` — Técnico envía propuesta económica.
+* `counterOffer`: `{ jobRequestId, counterAmount, note }` — Contraoferta de precio.
+* `acceptBid`: `{ jobRequestId, bidId, agreedAmount }` — Cierre y aceptación de oferta.
+
+### Eventos Transmitidos (Broadcast):
+* `newBidReceived`: Oferta transmitida a todos los conectados a la sala `job:{jobRequestId}`.
+* `counterOfferReceived`: Contraoferta emitida a la sala.
+* `bidAccepted`: Confirmación de trato cerrado emitida a ambas partes.
+
+---
+
+## 🧪 Pruebas Automatizadas
 
 ```bash
-$ npm install @nestjs/observe
+# Pruebas unitarias
+npm run test
+
+# Pruebas de integración E2E
+npm run test:e2e
+
+# Cobertura de pruebas
+npm run test:cov
 ```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
