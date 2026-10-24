@@ -1734,9 +1734,20 @@ class _JobTrackingScreenState extends State<JobTrackingScreen> {
                             ChambaButton(
                               label: 'Confirmar Conformidad y Liberar Pago (S/. ${_job.budget.toStringAsFixed(0)})',
                               leadingIcon: Icons.payments_rounded,
-                              onPressed: () {
-                                widget.appState.releaseEscrow(_job.id);
-                                _showReleaseSuccessCelebrationDialog();
+                              onPressed: () async {
+                                final workerId = _job.workerId ?? 'worker-1';
+                                try {
+                                  await widget.appState.releaseEscrowFunds(
+                                    jobId: _job.id,
+                                    workerUserId: workerId,
+                                    amount: _job.budget,
+                                  );
+                                } catch (_) {
+                                  widget.appState.releaseEscrow(_job.id);
+                                }
+                                if (mounted) {
+                                  _showReleaseSuccessCelebrationDialog();
+                                }
                               },
                             ),
                           ],
