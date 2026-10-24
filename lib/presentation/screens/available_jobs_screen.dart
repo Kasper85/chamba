@@ -178,7 +178,12 @@ class _AvailableJobsScreenState extends State<AvailableJobsScreen> {
                       Switch(
                         value: _isAvailable,
                         activeThumbColor: AppColors.tertiary,
-                        onChanged: (val) => setState(() => _isAvailable = val),
+                        onChanged: (val) {
+                          setState(() => _isAvailable = val);
+                          if (val) {
+                            _appState.syncWorkerLocation();
+                          }
+                        },
                       ),
                     ],
                   ),

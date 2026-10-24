@@ -30,6 +30,11 @@ class _WorkerShellState extends State<WorkerShell> {
     super.initState();
     _currentIndex = widget.initialIndex;
     widget.appState.addListener(_onStateChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.appState.syncWorkerLocation();
+      }
+    });
   }
 
   void _onStateChange() {

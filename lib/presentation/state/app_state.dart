@@ -11,6 +11,7 @@ import '../../data/services/session_storage.dart';
 import '../../data/services/api_client.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/location_api_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 enum UserRole {
   client,
@@ -211,6 +212,48 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Sincroniza la ubicación geoespacial del trabajador (PostGIS)
+  /// mediante PUT /api/v1/location/worker. Se dispara al abrir WorkerShell
+  /// y al activarse como disponible.
+  Future<bool> syncWorkerLocation({
+    double? latitude,
+    double? longitude,
+    bool tryGps = false,
+  }) async {
+    double lat = latitude ?? _userLatitude;
+    double lng = longitude ?? _userLongitude;
+
+    if (tryGps) {
+      try {
+        LocationPermission permission = await Geolocator.checkPermission()
+            .timeout(const Duration(milliseconds: 600));
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission()
+              .timeout(const Duration(milliseconds: 600));
+        }
+        if (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse) {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 3),
+            ),
+          );
+          lat = pos.latitude;
+          lng = pos.longitude;
+        }
+      } catch (_) {
+        // Fallback a coordenadas actuales
+      }
+    }
+
+    _userLatitude = lat;
+    _userLongitude = lng;
+    notifyListeners();
+
+    return updateWorkerGpsLocation(latitude: lat, longitude: lng);
   }
 
   UserRole get currentRole => _currentRole;
