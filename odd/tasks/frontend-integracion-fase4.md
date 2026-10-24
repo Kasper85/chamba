@@ -133,24 +133,37 @@ En Fase 2, estas entidades operan con el catálogo base de `mock_data.dart`, uti
 
 ## Checklist de Implementación por Porciones (TDD)
 
-- [ ] **S0. Infraestructura Común:**
+- [x] **S0. Infraestructura Común:**
   * Tests unitarios de `ApiClient` (resolución de URLs, headers Bearer, errores tipados, intercepción 401).
   * Implementación de `ApiClient` y refactor de `AuthApiService`.
   * Configuración de `--dart-define=API_BASE_URL` y `--dart-define=USE_MOCKS`.
-  * `AndroidManifest.xml` con permisos y `network_security_config.xml`.
-  * Verificación: `flutter analyze` + `flutter test` + commit `feat(s0): ...`.
-- [ ] **S1. Técnicos Cercanos (Cliente):**
-  * Tests de parsing y servicio de `LocationApiService`.
-  * Integración en `ClientHomeScreen` y `ChambaInteractiveMap`.
-  * Estados de carga, vacío y error con reintento.
-  * Verificación con Mobile MCP (Santa Victoria y Pimentel) + commit `feat(s1): ...`.
+  * `AndroidManifest.xml` con permisos (`INTERNET`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) y `network_security_config.xml`.
+  * Verificación: `flutter analyze` (0 lints), `flutter test` (46/46 tests). Commit: `8404584` (`feat(s0): infraestructura comun con ApiClient, dart-defines y permisos de red`).
+
+- [x] **S1. Técnicos Cercanos (Cliente):**
+  * Tests unitarios y de widgets para `LocationApiService`, `ClientHomeScreen` y `WorkerProfileDetailScreen`.
+  * `WorkerProfile.fromNearbyJson` con estricto cumplimiento de reglas de veracidad:
+    - `baseRate: 0.0` activa "Tarifa a convenir" (nunca inventar S/ 40).
+    - Sellos falsos de verificación (`isIdVerified`, `hasCleanRecord`, `offersWarranty`, `isVerified`) deshabilitados para técnicos reales.
+    - `experienceYears` oculto para técnicos reales.
+    - `reviews` y `portfolioCases` vacíos con mensaje "Aún sin reseñas" y "Aún sin casos comparativos".
+    - `email` del técnico no se expone en UI.
+  * `ChambaInteractiveMap` con pines para técnicos reales cercanos.
+  * Selector de radio (5 km, 10 km, 15 km, 30 km) y toggle mapa/lista.
+  * Verificación en emulador Android con Mobile MCP:
+    - Ubicación fijada en Santa Victoria (`-6.7824, -79.8415`).
+    - Ana García aparece a 1.1 km con "Tarifa a convenir", Electricidad, 4.9⭐.
+    - Carlos Ramírez aparece a 11.9 km en Pimentel con Gasfitería, 4.8⭐.
+    - Capturas de evidencia: `odd/evidence/frontend-integracion-fase4/s1_nearby_workers_list.png` y `s1_worker_detail.png`.
+  * Verificación: `flutter analyze` (0 lints), `flutter test` (51/51 tests). Commit: `69218a1` (`feat(s1): tecnicos cercanos con postgis y mapa interactivo`).
+
 - [ ] **S2. Ubicación del Técnico (Chambeador):**
-  * Tests de `updateWorkerLocation`.
-  * Disparo al abrir `WorkerShell` y al alternar disponibilidad.
+  * Tests de `updateWorkerLocation` (`PUT /api/v1/location/worker`).
+  * Disparo al abrir `WorkerShell` y al alternar disponibilidad en el switch de disponibilidad.
   * Verificación en emulador + commit `feat(s2): ...`.
 - [ ] **S3. Billetera del Técnico:**
   * Tests de `WalletSummary` y parsing de Ledger.
-  * Integración en `WorkerWalletScreen` con cálculo real de gráfico semanal.
+  * Integración en `WorkerWalletScreen` con cálculo real de gráfico semanal a partir de `recentTransactions`. Sin botón de recarga.
   * Verificación de saldo del seed + commit `feat(s3): ...`.
 - [ ] **S4. Diagnóstico con IA:**
   * Paquete `image_picker`.
@@ -168,4 +181,6 @@ En Fase 2, estas entidades operan con el catálogo base de `mock_data.dart`, uti
 
 ## Progreso y Estado de Ejecución
 - **Fase 1 (Diagnóstico):** ✅ Aprobado con correcciones.
-- **Fase 2 (S0 a S6):** 🚀 Iniciando S0 (Infraestructura).
+- **Fase 2 (S0 - Infraestructura):** ✅ Completado (commit `8404584`).
+- **Fase 2 (S1 - Técnicos Cercanos):** ✅ Completado (commit `69218a1`).
+- **Siguiente paso:** Implementar S2 (Ubicación del Técnico: `PUT /location/worker` al abrir shell y al activarse disponible).
