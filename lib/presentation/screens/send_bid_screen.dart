@@ -71,10 +71,12 @@ class _SendBidScreenState extends State<SendBidScreen> with SingleTickerProvider
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
+    widget.appState.joinJobRoom(widget.job.id);
   }
 
   @override
   void dispose() {
+    widget.appState.leaveJobRoom(widget.job.id);
     _recordTimer?.cancel();
     _playbackTimer?.cancel();
     _waveAnimController.dispose();
@@ -200,6 +202,45 @@ class _SendBidScreenState extends State<SendBidScreen> with SingleTickerProvider
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: widget.appState.isSocketConnected
+                      ? const Color(0xFFD1FAE5)
+                      : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 7,
+                      color: widget.appState.isSocketConnected
+                          ? const Color(0xFF047857)
+                          : const Color(0xFFB45309),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.appState.isSocketConnected ? 'En vivo' : 'Offline',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: widget.appState.isSocketConnected
+                            ? const Color(0xFF047857)
+                            : const Color(0xFFB45309),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

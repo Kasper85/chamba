@@ -48,6 +48,7 @@ class _ReceivedBidsScreenState extends State<ReceivedBidsScreen> {
     super.initState();
     _currentJob = widget.job;
     widget.appState.addListener(_onStateUpdate);
+    widget.appState.joinJobRoom(_currentJob.id);
   }
 
   void _onStateUpdate() {
@@ -62,6 +63,7 @@ class _ReceivedBidsScreenState extends State<ReceivedBidsScreen> {
 
   @override
   void dispose() {
+    widget.appState.leaveJobRoom(_currentJob.id);
     _playbackTimer?.cancel();
     widget.appState.removeListener(_onStateUpdate);
     super.dispose();
@@ -274,7 +276,71 @@ class _ReceivedBidsScreenState extends State<ReceivedBidsScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
+
+              // Indicador de conexión en tiempo real y etiqueta honesta
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.appState.isSocketConnected
+                          ? const Color(0xFFD1FAE5)
+                          : const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: widget.appState.isSocketConnected
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFF59E0B),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.circle,
+                          size: 8,
+                          color: widget.appState.isSocketConnected
+                              ? const Color(0xFF047857)
+                              : const Color(0xFFB45309),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          widget.appState.isSocketConnected
+                              ? 'Ofertas en vivo conectadas'
+                              : 'Sin conexión en vivo',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: widget.appState.isSocketConnected
+                                ? const Color(0xFF047857)
+                                : const Color(0xFFB45309),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0x1F202D33)),
+                    ),
+                    child: Text(
+                      'Trabajo DEMO · ofertas en vivo',
+                      style: AppTypography.labelSm.copyWith(
+                        color: AppColors.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
 
               // FEATURE 2: Quick Filter Chips
               SingleChildScrollView(
@@ -686,7 +752,41 @@ class _ReceivedBidsScreenState extends State<ReceivedBidsScreen> {
                 final acceptButton = ChambaButton(
                   label: 'Aceptar S/. ${(bid.counterAmount ?? bid.amount).toStringAsFixed(0)}',
                   leadingIcon: Icons.check,
-                  onPressed: () {
+                  onPressed: () async {
+                    final agreedAmount = bid.counterAmount ?? bid.amount;
+                    try {
+                      await widget.appState.holdEscrowFunds(
+                        jobId: _currentJob.id,
+                        amount: agreedAmount,
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: AppColors.error),
+                              SizedBox(width: 8),
+                              Text('Saldo insuficiente'),
+                            ],
+                          ),
+                          content: Text(
+                            'No cuentas con saldo suficiente en tu billetera CHAMBA para retener los S/. ${agreedAmount.toStringAsFixed(0)} de garantía en custodia.\n\nPor favor recarga saldo antes de confirmar el servicio.',
+                            style: AppTypography.bodyMd,
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('Entendido'),
+                            ),
+                          ],
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (!context.mounted) return;
                     widget.appState.acceptBid(
                       jobId: _currentJob.id,
                       bidId: bid.id,

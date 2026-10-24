@@ -14,6 +14,7 @@ import '../../data/services/location_api_service.dart';
 import '../../data/services/finance_api_service.dart';
 import '../../data/services/storage_api_service.dart';
 import '../../data/services/ai_api_service.dart';
+import '../../data/services/events_socket_service.dart';
 import '../../data/models/wallet_summary.dart';
 import '../../data/models/ai_diagnostic_result.dart';
 import 'package:geolocator/geolocator.dart';
@@ -32,6 +33,7 @@ class AppState extends ChangeNotifier {
   late final FinanceApiService _financeApi;
   late final StorageApiService _storageApi;
   late final AiApiService _aiApi;
+  late final EventsSocketService _eventsSocket;
 
   UserRole _currentRole = UserRole.client;
   final List<JobRequest> _jobs = List.from(MockData.initialJobs);
@@ -200,6 +202,7 @@ class AppState extends ChangeNotifier {
     FinanceApiService? financeApi,
     StorageApiService? storageApi,
     AiApiService? aiApi,
+    EventsSocketService? eventsSocket,
   })  : _sessionStorage = sessionStorage ?? SessionStorage(),
         _apiClient = apiClient ??
             ApiClient() {
@@ -208,6 +211,13 @@ class AppState extends ChangeNotifier {
     _financeApi = financeApi ?? FinanceApiService(apiClient: _apiClient);
     _storageApi = storageApi ?? StorageApiService(apiClient: _apiClient);
     _aiApi = aiApi ?? AiApiService(apiClient: _apiClient);
+    _eventsSocket = eventsSocket ?? EventsSocketService(apiClient: _apiClient);
+
+    _eventsSocket.onNewBidReceived.listen(_handleIncomingBid);
+    _eventsSocket.onCounterOfferReceived.listen(_handleIncomingCounterOffer);
+    _eventsSocket.onBidAccepted.listen(_handleIncomingBidAccepted);
+    _eventsSocket.onConnectionChange.listen((_) => notifyListeners());
+
     _activeJobId = _jobs.first.id;
 
     // Prepopulate realistic notifications
@@ -425,6 +435,7 @@ class AppState extends ChangeNotifier {
     _authToken = token;
     await _sessionStorage.saveToken(token);
     await _sessionStorage.saveUser(user);
+    _eventsSocket.connect(token);
     notifyListeners();
   }
 
@@ -438,6 +449,7 @@ class AppState extends ChangeNotifier {
     _currentUser = null;
     _authToken = null;
     await _sessionStorage.clearSession();
+    _eventsSocket.disconnect();
     notifyListeners();
   }
 
@@ -450,6 +462,7 @@ class AppState extends ChangeNotifier {
     if (cachedUser != null) {
       _currentUser = cachedUser;
       _authToken = token;
+      _eventsSocket.connect(token);
       notifyListeners();
     }
 
@@ -458,6 +471,7 @@ class AppState extends ChangeNotifier {
       _currentUser = freshUser;
       _authToken = token;
       await _sessionStorage.saveUser(freshUser);
+      _eventsSocket.connect(token);
       notifyListeners();
       return true;
     } catch (_) {
@@ -739,6 +753,251 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Socket.IO & Escrow Real-Time Integrations (Fase 4 S5 & S6)
+  bool get isSocketConnected => _eventsSocket.isConnected;
+  EventsSocketService get eventsSocket => _eventsSocket;
+
+  void joinJobRoom(String jobId) => _eventsSocket.joinJobRoom(jobId);
+  void leaveJobRoom(String jobId) => _eventsSocket.leaveJobRoom(jobId);
+
+  void _handleIncomingBid(Map<String, dynamic> data) {
+    final jobRequestId = data['jobRequestId']?.toString();
+    if (jobRequestId == null) return;
+
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobRequestId);
+    if (jobIndex == -1) return;
+
+    final bidId = data['id']?.toString() ?? 'bid-${DateTime.now().millisecondsSinceEpoch}';
+    final workerId = data['workerId']?.toString() ?? 'worker-unknown';
+    final workerName = data['workerName']?.toString() ?? 'Técnico Especialista';
+    final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+    final message = data['message']?.toString() ?? '';
+    final estimatedArrival = data['estimatedArrival']?.toString() ?? '20 min';
+    final etaMinutes = int.tryParse(estimatedArrival.replaceAll(RegExp(r'[^0-9]'), '')) ?? 20;
+    final includesMaterials = data['includesMaterials'] == true;
+    final inclusionTags = (data['inclusionTags'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final hasVoiceNote = data['hasVoiceNote'] == true;
+    final voiceDurationSeconds = (data['voiceDurationSeconds'] as num?)?.toInt() ?? 0;
+    final voiceTranscriptPreview = data['voiceTranscriptPreview']?.toString();
+
+    final incomingBid = Bid(
+      id: bidId,
+      jobId: jobRequestId,
+      workerId: workerId,
+      workerName: workerName,
+      workerAvatar: workerName.isNotEmpty ? workerName.substring(0, 1).toUpperCase() : 'T',
+      workerRating: 4.9,
+      workerCompletedJobs: 42,
+      isWorkerVerified: true,
+      amount: amount,
+      etaMinutes: etaMinutes,
+      message: message,
+      status: BidStatus.pending,
+      createdAt: DateTime.now(),
+      hasVoiceNote: hasVoiceNote,
+      voiceDurationSeconds: voiceDurationSeconds,
+      voiceTranscriptPreview: voiceTranscriptPreview,
+      includesMaterials: includesMaterials,
+      estimatedArrival: estimatedArrival,
+      inclusionTags: inclusionTags,
+    );
+
+    final job = _jobs[jobIndex];
+    final existingIndex = job.bids.indexWhere((b) => b.id == bidId || (b.workerId == workerId && b.amount == amount));
+    List<Bid> updatedBids;
+    if (existingIndex >= 0) {
+      updatedBids = List<Bid>.from(job.bids)..[existingIndex] = incomingBid;
+    } else {
+      updatedBids = List<Bid>.from(job.bids)..insert(0, incomingBid);
+    }
+
+    _jobs[jobIndex] = job.copyWith(
+      bids: updatedBids,
+      status: job.status == JobStatus.searching ? JobStatus.negotiating : job.status,
+    );
+
+    _notifications.insert(
+      0,
+      AppNotification(
+        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
+        title: '⚡ ¡Oferta en vivo de $workerName!',
+        body: 'Propuesta de S/. ${amount.toStringAsFixed(0)} recibida en tiempo real para "${job.title}".',
+        timestamp: DateTime.now(),
+        relatedJobId: jobRequestId,
+        icon: Icons.bolt_rounded,
+      ),
+    );
+
+    notifyListeners();
+  }
+
+  void _handleIncomingCounterOffer(Map<String, dynamic> data) {
+    final jobRequestId = data['jobRequestId']?.toString();
+    if (jobRequestId == null) return;
+
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobRequestId);
+    if (jobIndex == -1) return;
+
+    final counterAmount = (data['counterAmount'] as num?)?.toDouble() ?? 0.0;
+    final senderName = data['senderName']?.toString() ?? 'Cliente';
+
+    final job = _jobs[jobIndex];
+    if (job.bids.isNotEmpty) {
+      final updatedBids = job.bids.map((b) => b.copyWith(
+        counterAmount: counterAmount,
+        status: BidStatus.countered,
+      )).toList();
+      _jobs[jobIndex] = job.copyWith(bids: updatedBids);
+    }
+
+    _notifications.insert(
+      0,
+      AppNotification(
+        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
+        title: '🔄 Contraoferta recibida',
+        body: '$senderName propuso S/. ${counterAmount.toStringAsFixed(0)} en vivo.',
+        timestamp: DateTime.now(),
+        relatedJobId: jobRequestId,
+        icon: Icons.sync_alt_rounded,
+      ),
+    );
+
+    notifyListeners();
+  }
+
+  void _handleIncomingBidAccepted(Map<String, dynamic> data) {
+    final jobRequestId = data['jobRequestId']?.toString();
+    final bidId = data['bidId']?.toString();
+    final agreedAmount = (data['agreedAmount'] as num?)?.toDouble();
+
+    if (jobRequestId == null) return;
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobRequestId);
+    if (jobIndex == -1) return;
+
+    final job = _jobs[jobIndex];
+    final updatedBids = job.bids.map((b) {
+      if (b.id == bidId) {
+        return b.copyWith(status: BidStatus.accepted);
+      }
+      return b;
+    }).toList();
+
+    _jobs[jobIndex] = job.copyWith(
+      status: JobStatus.onTheWay,
+      acceptedBidId: bidId,
+      budget: agreedAmount ?? job.budget,
+      bids: updatedBids,
+    );
+
+    _notifications.insert(
+      0,
+      AppNotification(
+        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
+        title: '🤝 ¡Trato Aceptado en Tiempo Real!',
+        body: 'El servicio fue confirmado por S/. ${(agreedAmount ?? job.budget).toStringAsFixed(0)}.',
+        timestamp: DateTime.now(),
+        relatedJobId: jobRequestId,
+        icon: Icons.handshake_rounded,
+      ),
+    );
+
+    notifyListeners();
+  }
+
+  /// Retiene fondos en custodia Escrow (POST /api/v1/finance/escrow/hold)
+  /// Maneja 400 (saldo insuficiente) y 409 (ya retenido)
+  Future<bool> holdEscrowFunds({
+    required String jobId,
+    required double amount,
+  }) async {
+    final token = _authToken;
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
+    if (jobIndex == -1) return false;
+
+    if (token != null && token.isNotEmpty) {
+      try {
+        await _financeApi.holdEscrow(
+          token: token,
+          jobRequestId: jobId,
+          amount: amount,
+          description: 'Retención de garantía para servicio #$jobId',
+        );
+        fetchWallet();
+      } on ApiException catch (e) {
+        if (e.statusCode == 400) {
+          rethrow;
+        } else if (e.statusCode == 409) {
+          // Ya retenido previamente
+        } else {
+          rethrow;
+        }
+      } catch (e) {
+        rethrow;
+      }
+    }
+
+    final job = _jobs[jobIndex];
+    _jobs[jobIndex] = job.copyWith(
+      escrowStatus: EscrowStatus.heldInEscrow,
+      budget: amount,
+    );
+    notifyListeners();
+    return true;
+  }
+
+  /// Libera fondos en custodia Escrow al técnico (POST /api/v1/finance/escrow/release)
+  Future<bool> releaseEscrowFunds({
+    required String jobId,
+    required String workerUserId,
+    required double amount,
+  }) async {
+    final token = _authToken;
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
+    if (jobIndex == -1) return false;
+
+    if (token != null && token.isNotEmpty) {
+      try {
+        await _financeApi.releaseEscrow(
+          token: token,
+          jobRequestId: jobId,
+          workerUserId: workerUserId,
+          amount: amount,
+        );
+        fetchWallet();
+      } on ApiException catch (e) {
+        if (e.statusCode == 409) {
+          // Ya liberado previamente
+        } else {
+          rethrow;
+        }
+      } catch (e) {
+        rethrow;
+      }
+    }
+
+    final job = _jobs[jobIndex];
+    _jobs[jobIndex] = job.copyWith(
+      escrowStatus: EscrowStatus.released,
+      status: JobStatus.completed,
+      isPaid: true,
+    );
+
+    _notifications.insert(
+      0,
+      AppNotification(
+        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
+        title: '🎉 ¡Pago Liberado al Especialista!',
+        body: 'Se transfirieron S/. ${amount.toStringAsFixed(0)} a ${job.workerName ?? "el especialista"}. ¡Garantía Chamba activa!',
+        timestamp: DateTime.now(),
+        relatedJobId: jobId,
+        icon: Icons.monetization_on_rounded,
+      ),
+    );
+
+    notifyListeners();
+    return true;
+  }
+
   void submitBid({
     required String jobId,
     required double amount,
@@ -784,6 +1043,19 @@ class AppState extends ChangeNotifier {
       status: JobStatus.negotiating,
     );
 
+    // Transmitir por Socket.IO en tiempo real a la sala
+    _eventsSocket.emitSendBid(
+      jobRequestId: jobId,
+      amount: amount,
+      message: message,
+      estimatedArrival: estimatedArrival,
+      includesMaterials: includesMaterials,
+      inclusionTags: inclusionTags,
+      hasVoiceNote: hasVoiceNote,
+      voiceDurationSeconds: voiceDurationSeconds,
+      voiceTranscriptPreview: voiceTranscriptPreview,
+    );
+
     _notifications.insert(
       0,
       AppNotification(
@@ -818,6 +1090,13 @@ class AppState extends ChangeNotifier {
 
     final updatedBids = List<Bid>.from(job.bids)..[bidIndex] = updatedBid;
     _jobs[jobIndex] = job.copyWith(bids: updatedBids);
+
+    // Emitir contraoferta por Socket.IO
+    _eventsSocket.emitCounterOffer(
+      jobRequestId: jobId,
+      counterAmount: counterAmount,
+      note: 'Contraoferta cliente',
+    );
 
     // Record in chat messages
     _chatMessages.add(
@@ -893,6 +1172,13 @@ class AppState extends ChangeNotifier {
     );
 
     _activeJobId = jobId;
+
+    // Emitir aceptación por Socket.IO en tiempo real
+    _eventsSocket.emitAcceptBid(
+      jobRequestId: jobId,
+      bidId: bidId,
+      agreedAmount: agreedPrice,
+    );
 
     // Send agreement message to chat
     _chatMessages.add(
