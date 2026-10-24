@@ -63,24 +63,54 @@ class WorkerProfileDetailScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Text(
-                      worker.name,
-                      style: AppTypography.headlineSm.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.neutral,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            worker.name,
+                            textAlign: TextAlign.center,
+                            style: AppTypography.headlineSm.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.neutral,
+                            ),
+                          ),
+                        ),
+                        if (!worker.isRealBackendWorker) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainer,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'DEMO',
+                              style: AppTypography.labelSm.copyWith(
+                                color: AppColors.muted,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      worker.district,
+                      worker.distanceKm != null
+                          ? '${worker.district} • ${worker.distanceKm!.toStringAsFixed(1)} km de ti'
+                          : worker.district,
                       style: AppTypography.bodyMd.copyWith(color: AppColors.muted),
                     ),
-                    const SizedBox(height: 10),
-                    TrustShieldBadgesRow(
-                      isIdVerified: worker.isIdVerified,
-                      hasCleanRecord: worker.hasCleanRecord,
-                      offersWarranty: worker.offersWarranty,
-                    ),
+                    if (!worker.isRealBackendWorker) ...[
+                      const SizedBox(height: 10),
+                      TrustShieldBadgesRow(
+                        isIdVerified: worker.isIdVerified,
+                        hasCleanRecord: worker.hasCleanRecord,
+                        offersWarranty: worker.offersWarranty,
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     const Divider(height: 1, color: Color(0x14202D33)),
                     const SizedBox(height: 18),
@@ -90,7 +120,12 @@ class WorkerProfileDetailScreen extends StatelessWidget {
                       children: [
                         _buildStat('Calificación', '${worker.rating} ⭐'),
                         _buildStat('Chambas', '${worker.completedJobs}'),
-                        _buildStat('Experiencia', '${worker.experienceYears} años'),
+                        if (!worker.isRealBackendWorker && worker.experienceYears > 0)
+                          _buildStat('Experiencia', '${worker.experienceYears} años')
+                        else if (worker.isRealBackendWorker && worker.distanceKm != null)
+                          _buildStat('Distancia', '${worker.distanceKm!.toStringAsFixed(1)} km')
+                        else
+                          _buildStat('Estado', 'Disponible'),
                       ],
                     ),
                   ],
@@ -175,14 +210,18 @@ class WorkerProfileDetailScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'S/. ${worker.baseRate.toStringAsFixed(0)} / visita o base',
+                              worker.isRealBackendWorker || worker.baseRate == 0.0
+                                  ? 'Tarifa a convenir'
+                                  : 'S/. ${worker.baseRate.toStringAsFixed(0)} / visita o base',
                               style: AppTypography.bodyLgMedium.copyWith(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.neutral,
                               ),
                             ),
                             Text(
-                              'Negociable según magnitud del trabajo',
+                              worker.isRealBackendWorker
+                                  ? 'A convenir según magnitud del trabajo mediante ofertas'
+                                  : 'Negociable según magnitud del trabajo',
                               style: AppTypography.labelSm.copyWith(color: AppColors.muted),
                             ),
                           ],
@@ -360,7 +399,7 @@ class WorkerProfileDetailScreen extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
-                        'Aún no tiene reseñas públicas en su perfil.',
+                        'Aún sin reseñas',
                         style: AppTypography.bodyMd.copyWith(color: AppColors.muted),
                       ),
                     ),

@@ -321,6 +321,9 @@ class TrustShieldBadgesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!isIdVerified && !hasCleanRecord && !offersWarranty) {
+      return const SizedBox.shrink();
+    }
     return InkWell(
       onTap: () => showTrustModal(context),
       borderRadius: BorderRadius.circular(12),

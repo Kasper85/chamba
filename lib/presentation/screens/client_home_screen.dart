@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
@@ -7,7 +9,9 @@ import '../../core/widgets/chamba_badge.dart';
 import '../../core/widgets/role_switcher_pill.dart';
 import '../../data/models/category.dart';
 import '../../data/models/job_request.dart';
+import '../../data/models/worker_profile.dart';
 import '../state/app_state.dart';
+import '../widgets/chamba_interactive_map.dart';
 import 'post_job_screen.dart';
 import 'received_bids_screen.dart';
 import 'job_tracking_screen.dart';
@@ -30,10 +34,11 @@ class ClientHomeScreen extends StatefulWidget {
 }
 
 class _ClientHomeScreenState extends State<ClientHomeScreen>
-    with SingleTickerProviderStateMixin {
+  with SingleTickerProviderStateMixin {
   late AppState _appState;
   late AnimationController _radarController;
   int _selectedIndex = 0;
+  bool _showMap = true;
 
   @override
   void initState() {
@@ -44,6 +49,38 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    // Consultar automáticamente los técnicos cercanos con PostGIS al abrir
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _detectLocationAndFetchNearby();
+    });
+  }
+
+  Future<void> _detectLocationAndFetchNearby() async {
+    double lat = _appState.userLatitude;
+    double lng = _appState.userLongitude;
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 4),
+          ),
+        );
+        lat = pos.latitude;
+        lng = pos.longitude;
+      }
+    } catch (_) {
+      // Usar coordenadas por defecto en caso de emulador sin GPS o error
+    }
+    if (mounted) {
+      await _appState.fetchNearbyWorkers(latitude: lat, longitude: lng);
+    }
   }
 
   void _onStateChange() {
@@ -60,13 +97,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
   @override
   Widget build(BuildContext context) {
     final activeJobs = _appState.jobs;
-    final recommendedWorkers = _appState.workers;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () async => setState(() {}),
+          onRefresh: _detectLocationAndFetchNearby,
           color: AppColors.secondary,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -281,16 +317,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
 
                 const SizedBox(height: 24),
 
-                // Section: Especialistas Verificados Destacados
-                Text(
-                  'Técnicos Verificados en Chiclayo',
-                  style: AppTypography.headlineSm.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ...recommendedWorkers.map((worker) => _buildWorkerCard(worker)),
+                // Section: Especialistas Cercanos (PostGIS en tiempo real)
+                _buildNearbyTechniciansSection(),
                 const SizedBox(height: 20),
               ],
             ),
@@ -797,7 +825,228 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     );
   }
 
+  Widget _buildNearbyTechniciansSection() {
+    final nearbyWorkers = _appState.nearbyWorkers;
+    final fallbackWorkers = _appState.workers;
+    final isLoading = _appState.isLoadingNearbyWorkers;
+    final error = _appState.nearbyWorkersError;
+    final hasFetched = _appState.hasFetchedNearbyWorkers;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Técnicos Cercanos en Chiclayo',
+                    style: AppTypography.headlineSm.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'PostGIS en tiempo real • Radio ${_appState.nearbyRadiusKm.toInt()} km',
+                    style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: _showMap ? 'Ocultar mapa' : 'Mostrar mapa',
+                  icon: Icon(
+                    _showMap ? Icons.map : Icons.map_outlined,
+                    color: _showMap ? AppColors.secondary : AppColors.muted,
+                  ),
+                  onPressed: () => setState(() => _showMap = !_showMap),
+                ),
+                IconButton(
+                  tooltip: 'Actualizar GPS y técnicos',
+                  icon: const Icon(Icons.my_location, color: AppColors.secondary),
+                  onPressed: _detectLocationAndFetchNearby,
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Radios chips: 5km, 10km, 15km, 30km
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [5.0, 10.0, 15.0, 30.0].map((radius) {
+              final isSelected = _appState.nearbyRadiusKm == radius;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: FilterChip(
+                  label: Text('${radius.toInt()} km'),
+                  selected: isSelected,
+                  selectedColor: AppColors.secondary.withValues(alpha: 0.18),
+                  checkmarkColor: AppColors.secondary,
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected ? AppColors.secondary : AppColors.neutral,
+                  ),
+                  onSelected: (selected) {
+                    if (selected) {
+                      _appState.fetchNearbyWorkers(radiusKm: radius);
+                    }
+                  },
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Map section
+        if (_showMap) ...[
+          ChambaInteractiveMap(
+            height: 210,
+            initialCenter: LatLng(_appState.userLatitude, _appState.userLongitude),
+            nearbyWorkers: nearbyWorkers,
+            onWorkerTap: (worker) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => WorkerProfileDetailScreen(worker: worker),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // Loading state
+        if (isLoading) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x1F173B4D)),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.secondary),
+                ),
+                SizedBox(width: 14),
+                Text(
+                  'Buscando especialistas con PostGIS...',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.neutral),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ] else if (error != null) ...[
+          // Error state with retry
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.sosRedLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.sosRed.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.wifi_off_rounded, color: AppColors.sosRed, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'No se pudo conectar con el servidor',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.sosRedDark,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Verifica que el backend esté encendido en http://localhost:3000.',
+                  style: AppTypography.labelSm.copyWith(color: AppColors.neutral),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.sosRed,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Reintentar búsqueda'),
+                  onPressed: _detectLocationAndFetchNearby,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ] else if (hasFetched && nearbyWorkers.isEmpty) ...[
+          // Empty state
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x1F173B4D)),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.person_search_outlined, size: 44, color: AppColors.muted),
+                const SizedBox(height: 10),
+                Text(
+                  'No hay técnicos disponibles en este radio',
+                  style: AppTypography.headlineSm.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'No encontramos especialistas dentro de ${_appState.nearbyRadiusKm.toInt()} km de tu ubicación.',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => _appState.fetchNearbyWorkers(radiusKm: 30.0),
+                  child: const Text('Ampliar radio a 30 km'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ] else if (nearbyWorkers.isNotEmpty) ...[
+          // Real backend workers list (sorted by distance)
+          ...nearbyWorkers.map((worker) => _buildWorkerCard(worker)),
+        ] else ...[
+          // Initial demo fallback
+          ...fallbackWorkers.map((worker) => _buildWorkerCard(worker)),
+        ],
+      ],
+    );
+  }
+
   Widget _buildWorkerCard(dynamic worker) {
+    final bool isReal = worker is WorkerProfile && worker.isRealBackendWorker;
+    final double? distance = worker is WorkerProfile ? worker.distanceKm : null;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: ChambaCard(
@@ -832,12 +1081,38 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              worker.name,
-                              style: AppTypography.bodyLgMedium.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.neutral,
-                              ),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    worker.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.bodyLgMedium.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.neutral,
+                                    ),
+                                  ),
+                                ),
+                                if (!isReal) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceContainer,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'DEMO',
+                                      style: AppTypography.labelSm.copyWith(
+                                        color: AppColors.muted,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           if (worker.isVerified)
@@ -849,11 +1124,35 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                         ],
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        worker.skills.take(2).join(' • '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.labelMd.copyWith(color: AppColors.muted),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (worker.skills as List).take(2).join(' • '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.labelMd.copyWith(color: AppColors.muted),
+                            ),
+                          ),
+                          if (distance != null) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.secondary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${distance.toStringAsFixed(1)} km',
+                                style: AppTypography.labelSm.copyWith(
+                                  color: AppColors.secondary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -875,6 +1174,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                               style: AppTypography.labelSm.copyWith(color: AppColors.muted),
                             ),
                           ),
+                          const Spacer(),
+                          Text(
+                            isReal || worker.baseRate == 0.0
+                                ? 'Tarifa a convenir'
+                                : 'S/. ${worker.baseRate.toInt()}/h',
+                            style: AppTypography.labelSm.copyWith(
+                              color: isReal ? AppColors.secondary : AppColors.neutral,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -884,13 +1193,18 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                 const Icon(Icons.chevron_right, color: AppColors.muted),
               ],
             ),
-            const SizedBox(height: 10),
-            // Trust Shield Micro Row
-            TrustShieldBadgesRow(
-              isIdVerified: worker.isIdVerified ?? true,
-              hasCleanRecord: worker.hasCleanRecord ?? true,
-              offersWarranty: worker.offersWarranty ?? true,
-            ),
+            if (!isReal &&
+                (worker.isIdVerified == true ||
+                    worker.hasCleanRecord == true ||
+                    worker.offersWarranty == true)) ...[
+              const SizedBox(height: 10),
+              // Trust Shield Micro Row only for DEMO data
+              TrustShieldBadgesRow(
+                isIdVerified: worker.isIdVerified ?? true,
+                hasCleanRecord: worker.hasCleanRecord ?? true,
+                offersWarranty: worker.offersWarranty ?? true,
+              ),
+            ],
           ],
         ),
       ),

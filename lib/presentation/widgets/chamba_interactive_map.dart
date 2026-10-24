@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../data/models/worker_profile.dart';
 
 enum MapDisplayMode {
   selectLocation, // Client selecting exact address & pin
@@ -21,6 +22,8 @@ class ChambaInteractiveMap extends StatefulWidget {
   final LatLng? workerPosition;
   final String? clientAddress;
   final bool isSos;
+  final List<WorkerProfile> nearbyWorkers;
+  final Function(WorkerProfile worker)? onWorkerTap;
 
   const ChambaInteractiveMap({
     super.key,
@@ -33,6 +36,8 @@ class ChambaInteractiveMap extends StatefulWidget {
     this.workerPosition,
     this.clientAddress,
     this.isSos = false,
+    this.nearbyWorkers = const [],
+    this.onWorkerTap,
   });
 
   @override
@@ -292,6 +297,70 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                         ),
                       ),
                     ),
+
+                  // Nearby workers markers (PostGIS)
+                  ...widget.nearbyWorkers
+                      .where((w) => w.latitude != null && w.longitude != null)
+                      .map(
+                        (w) => Marker(
+                          point: LatLng(w.latitude!, w.longitude!),
+                          width: 52,
+                          height: 52,
+                          child: GestureDetector(
+                            onTap: () => widget.onWorkerTap?.call(w),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x33000000),
+                                        blurRadius: 6,
+                                        offset: Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      w.avatarInitials,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (w.distanceKm != null)
+                                  Positioned(
+                                    bottom: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.secondary,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        '${w.distanceKm!.toStringAsFixed(1)}k',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                 ],
               ),
             ],

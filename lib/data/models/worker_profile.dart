@@ -40,6 +40,7 @@ class BeforeAfterCase {
 
 class WorkerProfile {
   final String id;
+  final String? userId;
   final String name;
   final String avatarInitials;
   final double rating;
@@ -63,8 +64,15 @@ class WorkerProfile {
   // Real before & after work portfolio
   final List<BeforeAfterCase> portfolioCases;
 
+  // Geolocation & Backend Origin (Fase 4 PostGIS)
+  final double? latitude;
+  final double? longitude;
+  final double? distanceKm;
+  final bool isRealBackendWorker;
+
   const WorkerProfile({
     required this.id,
+    this.userId,
     required this.name,
     required this.avatarInitials,
     required this.rating,
@@ -83,9 +91,69 @@ class WorkerProfile {
     this.hasCleanRecord = true,
     this.offersWarranty = true,
     this.portfolioCases = const [],
+    this.latitude,
+    this.longitude,
+    this.distanceKm,
+    this.isRealBackendWorker = false,
   });
 
+  static String _extractInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts[0].isEmpty) return 'CH';
+    if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  /// Construye un perfil a partir del endpoint GET /api/v1/location/nearby
+  /// Cumpliendo estrictamente con las reglas de veracidad aprobadas:
+  /// - baseRate = 0.0 (activa "Tarifa a convenir", nunca inventar S/ 40)
+  /// - Sin sellos falsos de verificación (isVerified, isIdVerified, hasCleanRecord, offersWarranty en false)
+  /// - experienceYears = 0 (oculto en UI para técnicos reales)
+  /// - reviews y portfolio vacíos ("Aún sin reseñas")
+  /// - No expone el email en campos del perfil
+  factory WorkerProfile.fromNearbyJson(Map<String, dynamic> json) {
+    final fullName = (json['fullName'] as String?)?.trim() ?? 'Técnico';
+    final specialty = json['specialty'] as String?;
+    final skillsList = <String>[];
+    if (specialty != null && specialty.trim().isNotEmpty) {
+      skillsList.add(specialty.trim());
+    }
+
+    final district = (json['workerDistrict'] as String?)?.trim() ??
+        (json['userDistrict'] as String?)?.trim() ??
+        'Chiclayo';
+
+    return WorkerProfile(
+      id: (json['workerProfileId'] as String?) ?? (json['id'] as String?) ?? '',
+      userId: json['userId'] as String?,
+      name: fullName,
+      avatarInitials: _extractInitials(fullName),
+      rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
+      completedJobs: (json['completedJobs'] as num?)?.toInt() ?? 0,
+      isVerified: false,
+      skills: skillsList,
+      bio: (json['bio'] as String?) ?? '',
+      baseRate: 0.0, // 0.0 -> "Tarifa a convenir"
+      serviceRadiusKm: 15,
+      district: district,
+      phone: (json['phone'] as String?) ?? '',
+      dni: '',
+      experienceYears: 0,
+      reviews: const [],
+      isIdVerified: false,
+      hasCleanRecord: false,
+      offersWarranty: false,
+      portfolioCases: const [],
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+      isRealBackendWorker: true,
+    );
+  }
+
   WorkerProfile copyWith({
+    String? id,
+    String? userId,
     String? name,
     String? avatarInitials,
     double? rating,
@@ -104,9 +172,14 @@ class WorkerProfile {
     bool? hasCleanRecord,
     bool? offersWarranty,
     List<BeforeAfterCase>? portfolioCases,
+    double? latitude,
+    double? longitude,
+    double? distanceKm,
+    bool? isRealBackendWorker,
   }) {
     return WorkerProfile(
-      id: id,
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
       name: name ?? this.name,
       avatarInitials: avatarInitials ?? this.avatarInitials,
       rating: rating ?? this.rating,
@@ -125,6 +198,10 @@ class WorkerProfile {
       hasCleanRecord: hasCleanRecord ?? this.hasCleanRecord,
       offersWarranty: offersWarranty ?? this.offersWarranty,
       portfolioCases: portfolioCases ?? this.portfolioCases,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      distanceKm: distanceKm ?? this.distanceKm,
+      isRealBackendWorker: isRealBackendWorker ?? this.isRealBackendWorker,
     );
   }
 }

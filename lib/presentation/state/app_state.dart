@@ -8,7 +8,9 @@ import '../../data/models/app_notification.dart';
 import '../../data/mock/mock_data.dart';
 import '../../data/models/user_account.dart';
 import '../../data/services/session_storage.dart';
+import '../../data/services/api_client.dart';
 import '../../data/services/auth_api_service.dart';
+import '../../data/services/location_api_service.dart';
 
 enum UserRole {
   client,
@@ -16,8 +18,10 @@ enum UserRole {
 }
 
 class AppState extends ChangeNotifier {
-  final SessionStorage _sessionStorage = SessionStorage();
-  final AuthApiService _authApi = AuthApiService();
+  final SessionStorage _sessionStorage;
+  final ApiClient _apiClient;
+  late final AuthApiService _authApi;
+  late final LocationApiService _locationApi;
 
   UserRole _currentRole = UserRole.client;
   final List<JobRequest> _jobs = List.from(MockData.initialJobs);
@@ -30,6 +34,16 @@ class AppState extends ChangeNotifier {
   // Real authenticated user & session
   UserAccount? _currentUser;
   String? _authToken;
+
+  // Real Nearby Workers State (Fase 4 PostGIS)
+  List<WorkerProfile> _nearbyWorkers = [];
+  bool _isLoadingNearbyWorkers = false;
+  String? _nearbyWorkersError;
+  double _userLatitude = -6.7824;
+  double _userLongitude = -79.8415;
+  double _nearbyRadiusKm = 15.0;
+  String? _selectedNearbySpecialty;
+  bool _hasFetchedNearbyWorkers = false;
 
   // Mock fallbacks for demo & test compatibility
   String _mockClientName = 'Lucía Fernández';
@@ -93,7 +107,16 @@ class AppState extends ChangeNotifier {
   String? get authToken => _authToken;
   bool get isAuthenticated => _currentUser != null && _authToken != null;
 
-  AppState() {
+  AppState({
+    ApiClient? apiClient,
+    SessionStorage? sessionStorage,
+    AuthApiService? authApi,
+    LocationApiService? locationApi,
+  })  : _sessionStorage = sessionStorage ?? SessionStorage(),
+        _apiClient = apiClient ??
+            ApiClient() {
+    _authApi = authApi ?? AuthApiService(apiClient: _apiClient);
+    _locationApi = locationApi ?? LocationApiService(apiClient: _apiClient);
     _activeJobId = _jobs.first.id;
 
     // Prepopulate realistic notifications
@@ -123,6 +146,71 @@ class AppState extends ChangeNotifier {
         icon: Icons.check_circle_outline,
       ),
     ]);
+  }
+
+  // Real Nearby Workers (Fase 4 PostGIS)
+  List<WorkerProfile> get nearbyWorkers => _nearbyWorkers;
+  bool get isLoadingNearbyWorkers => _isLoadingNearbyWorkers;
+  String? get nearbyWorkersError => _nearbyWorkersError;
+  double get userLatitude => _userLatitude;
+  double get userLongitude => _userLongitude;
+  double get nearbyRadiusKm => _nearbyRadiusKm;
+  String? get selectedNearbySpecialty => _selectedNearbySpecialty;
+  bool get hasFetchedNearbyWorkers => _hasFetchedNearbyWorkers;
+  LocationApiService get locationApi => _locationApi;
+  ApiClient get apiClient => _apiClient;
+
+  Future<void> fetchNearbyWorkers({
+    double? latitude,
+    double? longitude,
+    double? radiusKm,
+    String? specialty,
+  }) async {
+    _isLoadingNearbyWorkers = true;
+    _nearbyWorkersError = null;
+    if (latitude != null) _userLatitude = latitude;
+    if (longitude != null) _userLongitude = longitude;
+    if (radiusKm != null) _nearbyRadiusKm = radiusKm;
+    _selectedNearbySpecialty = specialty;
+    notifyListeners();
+
+    try {
+      final workers = await _locationApi.getNearbyWorkers(
+        lat: _userLatitude,
+        lng: _userLongitude,
+        radiusKm: _nearbyRadiusKm,
+        specialty: _selectedNearbySpecialty,
+      );
+      _nearbyWorkers = workers;
+      _hasFetchedNearbyWorkers = true;
+    } catch (e) {
+      _nearbyWorkersError = e.toString();
+    } finally {
+      _isLoadingNearbyWorkers = false;
+      notifyListeners();
+    }
+  }
+
+  void setUserCoordinates(double lat, double lng) {
+    _userLatitude = lat;
+    _userLongitude = lng;
+    notifyListeners();
+  }
+
+  Future<bool> updateWorkerGpsLocation({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final res = await _locationApi.updateWorkerLocation(
+        latitude: latitude,
+        longitude: longitude,
+        token: _authToken,
+      );
+      return res['success'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   UserRole get currentRole => _currentRole;
