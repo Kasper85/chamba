@@ -39,4 +39,14 @@ export class WorkerProfileController {
   ) {
     return this.workerProfileService.upsertMyProfile(user.id, dto);
   }
+
+  @Put('me/availability')
+  @ApiOperation({ summary: 'Alternar disponibilidad del chambeador (ALCANCE.md §8 L9)' })
+  @ApiResponse({ status: 200, description: 'Disponibilidad actualizada con éxito' })
+  async updateAvailability(
+    @CurrentUser() user: { id: string },
+    @Body() body: { isAvailable: boolean },
+  ) {
+    return this.workerProfileService.updateAvailability(user.id, body.isAvailable);
+  }
 }

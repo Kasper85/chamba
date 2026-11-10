@@ -1,4 +1,4 @@
-// Prisma Schema for CHAMBA Peru — Phase 1: Authentication & User/Worker Profile
+// Prisma Schema for CHAMBA Peru — Phase 1 & 2: Full Marketplace Persistence (ALCANCE.md §8 L2)
 
 generator client {
   provider = "prisma-client-js"
@@ -15,6 +15,48 @@ enum AccountStatus {
   SUSPENDED
 }
 
+enum UserRole {
+  CLIENT
+  WORKER
+  SUPPORT
+  ADMIN
+}
+
+enum JobStatus {
+  BUSCANDO
+  NEGOCIANDO
+  ACEPTADA
+  EN_CAMINO
+  EN_SITIO
+  EN_EJECUCION
+  POR_CONFIRMAR
+  COMPLETADA
+  EN_DISPUTA
+  CANCELADA
+  REEMBOLSADA
+}
+
+enum BidStatus {
+  PENDIENTE
+  ACEPTADA
+  RECHAZADA
+  CONTRAOFERTA
+}
+
+enum DisputeStatus {
+  ABIERTA
+  EN_REVISION
+  RESUELTA_TRABAJADOR
+  RESUELTA_CLIENTE
+  RESUELTA_DIVIDIDA
+}
+
+enum TicketStatus {
+  ABIERTO
+  EN_PROCESO
+  CERRADO
+}
+
 model User {
   id           String         @id @default(uuid())
   fullName     String         @map("full_name")
@@ -23,33 +65,44 @@ model User {
   phone        String?
   district     String?
   address      String?
+  role         UserRole       @default(CLIENT)
   status       AccountStatus  @default(ACTIVE)
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
-  // 1-to-1 relation with optional WorkerProfile (A user can act as Client and enable Worker profile)
+  // 1-to-1 relation with optional WorkerProfile
   workerProfile WorkerProfile?
 
   // 1-to-1 relation with financial Wallet
   wallet Wallet?
 
+  // Relations to Marketplace
+  clientJobs     JobRequest[]    @relation("ClientJobs")
+  disputesOpened Dispute[]       @relation("DisputesOpened")
+  supportTickets SupportTicket[]
+
   @@map("users")
 }
 
 model WorkerProfile {
-  id           String   @id @default(uuid())
-  userId       String   @unique @map("user_id")
-  bio          String?
-  district     String?
-  specialty    String?
-  isAvailable  Boolean  @default(true) @map("is_available")
-  rating       Float    @default(5.0)
-  completedJobs Int     @default(0) @map("completed_jobs")
-  location     Unsupported("geometry(Point, 4326)")?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  bio           String?
+  district      String?
+  specialty     String?
+  isAvailable   Boolean  @default(true) @map("is_available")
+  rating        Float    @default(5.0)
+  completedJobs Int      @default(0) @map("completed_jobs")
+  incidentsCount Int     @default(0) @map("incidents_count")
+  location      Unsupported("geometry(Point, 4326)")?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations to Marketplace
+  assignedJobs JobRequest[] @relation("AssignedJobs")
+  bids         Bid[]        @relation("WorkerBids")
 
   @@map("worker_profiles")
 }
@@ -60,6 +113,9 @@ enum LedgerEntryType {
   RELEASE_ESCROW
   WITHDRAW
   REFUND_ESCROW
+  COMMISSION
+  SERVICE_FEE
+  COMPENSATION
 }
 
 model Wallet {
@@ -90,3 +146,126 @@ model LedgerEntry {
   @@map("ledger_entries")
 }
 
+model JobRequest {
+  id              String         @id @default(uuid())
+  clientId        String         @map("client_id")
+  workerId        String?        @map("worker_id")
+  title           String
+  description     String
+  category        String
+  budget          Decimal        @db.Decimal(12, 2)
+  agreedPrice     Decimal?       @map("agreed_price") @db.Decimal(12, 2)
+  status          JobStatus      @default(BUSCANDO)
+  latitude        Float?
+  longitude       Float?
+  district        String
+  address         String?
+  reference       String?
+  isSos           Boolean        @default(false) @map("is_sos")
+  urgency         String         @default("MEDIA")
+  securityPin     String?        @map("security_pin")
+  isPinVerified   Boolean        @default(false) @map("is_pin_verified")
+  beforePhotoUrl  String?        @map("before_photo_url")
+  afterPhotoUrl   String?        @map("after_photo_url")
+  acceptedAt      DateTime?      @map("accepted_at")
+  depositDeadline DateTime?      @map("deposit_deadline")
+  confirmedAt     DateTime?      @map("confirmed_at")
+  autoReleaseAt   DateTime?      @map("auto_release_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  client          User           @relation("ClientJobs", fields: [clientId], references: [id], onDelete: Cascade)
+  worker          WorkerProfile? @relation("AssignedJobs", fields: [workerId], references: [id], onDelete: SetNull)
+  bids            Bid[]
+  disputes        Dispute[]
+  ratings         Rating[]
+  supportTickets  SupportTicket[]
+
+  @@index([clientId])
+  @@index([workerId])
+  @@index([status])
+  @@map("job_requests")
+}
+
+model Bid {
+  id                  String         @id @default(uuid())
+  jobRequestId        String         @map("job_request_id")
+  workerId            String         @map("worker_id")
+  amount              Decimal        @db.Decimal(12, 2)
+  message             String?
+  voiceNoteUrl        String?        @map("voice_note_url")
+  estimatedEtaMinutes Int?           @map("estimated_eta_minutes")
+  status              BidStatus      @default(PENDIENTE)
+  counterAmount       Decimal?       @map("counter_amount") @db.Decimal(12, 2)
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  jobRequest          JobRequest     @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
+  worker              WorkerProfile  @relation("WorkerBids", fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([jobRequestId])
+  @@index([workerId])
+  @@map("bids")
+}
+
+model Dispute {
+  id                String         @id @default(uuid())
+  jobRequestId      String         @map("job_request_id")
+  openedById        String         @map("opened_by_id")
+  reason            String
+  clientStatement   String?        @map("client_statement")
+  workerStatement   String?        @map("worker_statement")
+  status            DisputeStatus  @default(ABIERTA)
+  aiRecommendation  String?        @map("ai_recommendation")
+  aiConfidence      Float?         @map("ai_confidence")
+  resolutionNotes   String?        @map("resolution_notes")
+  resolvedById      String?        @map("resolved_by_id")
+  workerSplitPercent Float?        @map("worker_split_percent")
+  appealsCount      Int            @default(0) @map("appeals_count")
+  appealReason      String?        @map("appeal_reason")
+  resolvedAt        DateTime?      @map("resolved_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  jobRequest        JobRequest     @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
+  openedBy          User           @relation("DisputesOpened", fields: [openedById], references: [id], onDelete: Cascade)
+
+  @@index([jobRequestId])
+  @@index([openedById])
+  @@map("disputes")
+}
+
+model Rating {
+  id           String      @id @default(uuid())
+  jobRequestId String      @map("job_request_id")
+  fromUserId   String      @map("from_user_id")
+  toUserId     String      @map("to_user_id")
+  stars        Int
+  comment      String?
+  tipAmount    Decimal?    @default(0) @map("tip_amount") @db.Decimal(12, 2)
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  jobRequest   JobRequest  @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
+
+  @@index([jobRequestId])
+  @@index([toUserId])
+  @@map("ratings")
+}
+
+model SupportTicket {
+  id           String        @id @default(uuid())
+  jobRequestId String?       @map("job_request_id")
+  userId       String        @map("user_id")
+  subject      String
+  message      String
+  status       TicketStatus  @default(ABIERTO)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  jobRequest   JobRequest?   @relation(fields: [jobRequestId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([jobRequestId])
+  @@index([userId])
+  @@map("support_tickets")
+}

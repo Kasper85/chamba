@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Socket } from 'socket.io';
 import { EventsGateway } from './events.gateway.js';
 import { RedisService } from '../redis/redis.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 describe('EventsGateway (Unit Tests)', () => {
   let gateway: EventsGateway;
@@ -241,6 +242,121 @@ describe('EventsGateway (Unit Tests)', () => {
         }),
       );
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('Control de acceso a salas y eventos de negociación (ALCANCE.md §8 L14)', () => {
+    let secureGateway: EventsGateway;
+    const mockPrisma = {
+      jobRequest: {
+        findUnique: vi.fn(),
+      },
+      workerProfile: {
+        findUnique: vi.fn(),
+      },
+    };
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          EventsGateway,
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: RedisService, useValue: mockRedisService },
+          { provide: ConfigService, useValue: mockConfigService },
+          { provide: PrismaService, useValue: mockPrisma },
+        ],
+      }).compile();
+
+      secureGateway = module.get<EventsGateway>(EventsGateway);
+      secureGateway.server = mockServer as any;
+    });
+
+    it('debe rechazar unirse a la sala si un usuario común sin perfil de técnico intenta entrar en BUSCANDO', async () => {
+      mockPrisma.jobRequest.findUnique.mockResolvedValue({
+        id: 'job-999',
+        clientId: 'client-1',
+        status: 'BUSCANDO',
+      });
+      mockPrisma.workerProfile.findUnique.mockResolvedValue(null);
+
+      const mockSocket = {
+        id: 'socket-stranger',
+        data: { user: { sub: 'stranger-user', role: 'CLIENT' } },
+        join: vi.fn(),
+        emit: vi.fn(),
+      } as unknown as Socket;
+
+      const result = await secureGateway.handleJoinJobRoom(mockSocket, { jobRequestId: 'job-999' });
+
+      expect(result.success).toBe(false);
+      expect(mockSocket.join).not.toHaveBeenCalled();
+      expect(mockSocket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ message: expect.any(String) }));
+    });
+
+    it('debe rechazar si un técnico no asignado intenta entrar en fase EN_CAMINO/EN_EJECUCION', async () => {
+      mockPrisma.jobRequest.findUnique.mockResolvedValue({
+        id: 'job-999',
+        clientId: 'client-1',
+        workerId: 'assigned-worker-prof',
+        status: 'EN_CAMINO',
+        worker: { user: { id: 'assigned-worker-user' } },
+      });
+
+      const mockSocket = {
+        id: 'socket-unrelated-worker',
+        data: { user: { sub: 'other-worker-user', role: 'WORKER' } },
+        join: vi.fn(),
+        emit: vi.fn(),
+      } as unknown as Socket;
+
+      const result = await secureGateway.handleJoinJobRoom(mockSocket, { jobRequestId: 'job-999' });
+
+      expect(result.success).toBe(false);
+      expect(mockSocket.join).not.toHaveBeenCalled();
+      expect(mockSocket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ message: expect.any(String) }));
+    });
+
+    it('debe permitir al cliente de la chamba unirse a la sala', async () => {
+      mockPrisma.jobRequest.findUnique.mockResolvedValue({
+        id: 'job-999',
+        clientId: 'client-1',
+        status: 'EN_CAMINO',
+        worker: { user: { id: 'assigned-worker-user' } },
+      });
+
+      const mockSocket = {
+        id: 'socket-client',
+        data: { user: { sub: 'client-1', role: 'CLIENT' } },
+        join: vi.fn().mockResolvedValue(undefined),
+        emit: vi.fn(),
+      } as unknown as Socket;
+
+      const result = await secureGateway.handleJoinJobRoom(mockSocket, { jobRequestId: 'job-999' });
+
+      expect(result.success).toBe(true);
+      expect(mockSocket.join).toHaveBeenCalledWith('job:job-999');
+    });
+
+    it('debe rechazar acceptBid si quien emite el evento no es el cliente', async () => {
+      mockPrisma.jobRequest.findUnique.mockResolvedValue({
+        id: 'job-999',
+        clientId: 'client-1',
+      });
+
+      const mockSocket = {
+        id: 'socket-impostor',
+        data: { user: { sub: 'impostor-user' } },
+        emit: vi.fn(),
+      } as unknown as Socket;
+
+      const result = await secureGateway.handleAcceptBid(mockSocket, {
+        jobRequestId: 'job-999',
+        bidId: 'bid-1',
+        agreedAmount: 50.0,
+      });
+
+      expect(result.success).toBe(false);
+      expect(mockSocket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ message: expect.any(String) }));
     });
   });
 });

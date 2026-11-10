@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FinanceService } from './finance.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { HoldEscrowDto } from './dto/hold-escrow.dto.js';
 import { ReleaseEscrowDto } from './dto/release-escrow.dto.js';
+import { RefundEscrowDto } from './dto/refund-escrow.dto.js';
 import { DepositWalletDto } from './dto/deposit-wallet.dto.js';
 
 @ApiTags('Finance & Escrow (FinTech)')
@@ -72,6 +73,30 @@ export class FinanceController {
     );
   }
 
+  @Post('escrow/refund')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Reembolsar fondos de Escrow al cliente (con compensación opcional al técnico)',
+    description:
+      'Reembolsa los fondos en custodia al cliente. Si el técnico ya estaba en camino, se transfiere una compensación del 10% (mín S/. 5, máx S/. 20) al técnico.',
+  })
+  @ApiResponse({ status: 200, description: 'Fondos de garantía reembolsados exitosamente' })
+  @ApiResponse({ status: 404, description: 'No se encontraron fondos retenidos para esta solicitud' })
+  @ApiResponse({ status: 409, description: 'Fondos ya liberados o reembolsados previamente' })
+  async refundEscrow(
+    @CurrentUser() user: { id: string },
+    @Body() dto: RefundEscrowDto,
+  ) {
+    return this.financeService.refundEscrow(
+      user.id,
+      dto.jobRequestId,
+      dto.isWorkerOnTheWay ?? false,
+      dto.workerUserId,
+    );
+  }
+
   @Post('deposit')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -89,5 +114,19 @@ export class FinanceController {
       dto.description,
       dto.jobRequestId,
     );
+  }
+
+  @Get('audit/jobs/:jobId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Auditoría financiera y comprobación de invariante del ledger para una chamba (§2, §8 L13)',
+    description: 'Devuelve saldos reales de cliente, técnico y tesorería, junto con todos los asientos del Ledger.',
+  })
+  async getJobFinancialAudit(
+    @CurrentUser() user: { id: string; role?: string },
+    @Param('jobId') jobId: string,
+  ) {
+    return this.financeService.getWalletsOverviewForJob(jobId, user);
   }
 }

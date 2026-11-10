@@ -8,11 +8,12 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Logger, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Logger, Optional, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { SendBidDto } from './dto/send-bid.dto.js';
 import { JoinJobRoomDto } from './dto/join-job-room.dto.js';
 import { WsJwtGuard } from './guards/ws-jwt.guard.js';
@@ -22,6 +23,7 @@ export interface AuthenticatedUserPayload {
   email: string;
   fullName?: string;
   phone?: string;
+  role?: string;
 }
 
 @WebSocketGateway({
@@ -44,6 +46,7 @@ export class EventsGateway
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
 
   afterInit() {
@@ -109,14 +112,62 @@ export class EventsGateway
   }
 
   /**
-   * Suscribe el socket de un cliente o trabajador a la sala específica de una solicitud.
-   * Ej: 'job:job-101'
+   * Suscribe el socket de un cliente o trabajador a la sala específica de una solicitud (§3, §8 L14).
+   * Valida autorización:
+   * - En fase BUSCANDO/NEGOCIANDO: cliente creador, técnicos con perfil o soporte.
+   * - En fases posteriores: solo el cliente creador, el técnico asignado o soporte.
    */
   @SubscribeMessage('joinJobRoom')
   async handleJoinJobRoom(
     @ConnectedSocket() client: Socket,
     @MessageBody() dto: JoinJobRoomDto,
   ) {
+    const user = client.data?.user as (AuthenticatedUserPayload & { role?: string }) | undefined;
+    const userId = user?.sub;
+
+    if (this.prisma && userId) {
+      const job = await this.prisma.jobRequest.findUnique({
+        where: { id: dto.jobRequestId },
+        include: {
+          worker: {
+            include: { user: true },
+          },
+        },
+      });
+
+      if (job) {
+        const isClient = job.clientId === userId;
+        const workerUserId = job.worker?.userId || job.worker?.user?.id;
+        const isAssignedWorker = workerUserId === userId || job.workerId === userId;
+        const isSupport = user?.role === 'SUPPORT' || user?.role === 'ADMIN';
+
+        const isDiscoveryPhase = job.status === 'BUSCANDO' || job.status === 'NEGOCIANDO';
+
+        if (!isClient && !isSupport) {
+          if (isDiscoveryPhase) {
+            const workerProfile = await this.prisma.workerProfile.findUnique({
+              where: { userId },
+            });
+            if (!workerProfile) {
+              this.logger.warn(
+                `⛔ Intento de acceso no autorizado a sala job:${dto.jobRequestId} por usuario sin perfil técnico ${userId}`,
+              );
+              client.emit('error', { message: 'No tienes permiso para unirte a esta sala de chamba' });
+              return { success: false, error: 'No autorizado' };
+            }
+          } else {
+            if (!isAssignedWorker) {
+              this.logger.warn(
+                `⛔ Intento de intrusión a sala job:${dto.jobRequestId} en fase ${job.status} por ${userId}`,
+              );
+              client.emit('error', { message: 'Solo las partes de la chamba pueden acceder a esta sala' });
+              return { success: false, error: 'No autorizado' };
+            }
+          }
+        }
+      }
+    }
+
     const room = `job:${dto.jobRequestId}`;
     await client.join(room);
 
@@ -198,7 +249,8 @@ export class EventsGateway
   }
 
   /**
-   * Permite contraofertar sobre una oferta en tiempo real.
+   * Permite contraofertar sobre una oferta en tiempo real (§3, §8 L14).
+   * Valida autorización: solo cliente, técnico asignado o soporte.
    * Emite el evento 'counterOfferReceived' a la sala 'job:{jobRequestId}'.
    */
   @SubscribeMessage('counterOffer')
@@ -207,7 +259,32 @@ export class EventsGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { jobRequestId: string; counterAmount: number; note?: string },
   ) {
-    const user = client.data?.user as AuthenticatedUserPayload;
+    const user = client.data?.user as (AuthenticatedUserPayload & { role?: string }) | undefined;
+    const userId = user?.sub;
+
+    if (this.prisma && userId) {
+      const job = await this.prisma.jobRequest.findUnique({
+        where: { id: payload.jobRequestId },
+        include: {
+          worker: {
+            include: { user: true },
+          },
+        },
+      });
+
+      if (job) {
+        const isClient = job.clientId === userId;
+        const workerUserId = job.worker?.userId || job.worker?.user?.id;
+        const isWorker = workerUserId === userId || job.workerId === userId;
+        const isSupport = user?.role === 'SUPPORT' || user?.role === 'ADMIN';
+
+        if (!isClient && !isWorker && !isSupport) {
+          client.emit('error', { message: 'No tienes permiso para contraofertar en esta chamba' });
+          return { success: false, error: 'No autorizado' };
+        }
+      }
+    }
+
     const room = `job:${payload.jobRequestId}`;
 
     const counterData = {
@@ -228,7 +305,8 @@ export class EventsGateway
   }
 
   /**
-   * Notifica la aceptación de una oferta a todos en la sala.
+   * Notifica la aceptación de una oferta a todos en la sala (§3, §8 L14).
+   * Valida que solo el cliente creador de la chamba pueda aceptar propuestas.
    */
   @SubscribeMessage('acceptBid')
   @UseGuards(WsJwtGuard)
@@ -236,7 +314,20 @@ export class EventsGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { jobRequestId: string; bidId: string; agreedAmount: number },
   ) {
-    const user = client.data?.user as AuthenticatedUserPayload;
+    const user = client.data?.user as (AuthenticatedUserPayload & { role?: string }) | undefined;
+    const userId = user?.sub;
+
+    if (this.prisma && userId) {
+      const job = await this.prisma.jobRequest.findUnique({
+        where: { id: payload.jobRequestId },
+      });
+
+      if (job && job.clientId !== userId) {
+        client.emit('error', { message: 'Solo el cliente que publicó la chamba puede aceptar ofertas' });
+        return { success: false, error: 'No autorizado' };
+      }
+    }
+
     const room = `job:${payload.jobRequestId}`;
 
     const acceptanceData = {

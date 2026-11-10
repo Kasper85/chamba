@@ -60,4 +60,22 @@ export class WorkerProfileService {
       },
     });
   }
+
+  async updateAvailability(userId: string, isAvailable: boolean) {
+    return this.prisma.workerProfile.upsert({
+      where: { userId },
+      update: { isAvailable },
+      create: {
+        userId,
+        isAvailable,
+        bio: 'Técnico especialista',
+        specialty: 'Servicios Generales',
+      },
+      select: {
+        id: true,
+        userId: true,
+        isAvailable: true,
+      },
+    });
+  }
 }

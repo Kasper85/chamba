@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -10,6 +11,8 @@ import { EventsModule } from './events/events.module.js';
 import { FinanceModule } from './finance/finance.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { AiModule } from './ai/ai.module.js';
+import { JobsModule } from './jobs/jobs.module.js';
+import { DisputesModule } from './disputes/disputes.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -19,6 +22,7 @@ import { AppService } from './app.service.js';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
     EventsModule,
@@ -29,6 +33,8 @@ import { AppService } from './app.service.js';
     UsersModule,
     WorkerProfileModule,
     LocationModule,
+    JobsModule,
+    DisputesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
