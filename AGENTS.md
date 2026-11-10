@@ -9,7 +9,7 @@ Proyecto: app **Flutter** (`lib/`) + backend **NestJS + Prisma + PostgreSQL/Post
 - Trabajo pequeño: se hace directo. Trabajo grande (que no puede reanudarse desde el diff): guarda la spec literal en `odd/tasks/<nombre>.md`.
 - Ciclo: **autorizar y entender → implementar → verificar → cerrar**.
 - **TDD por defecto** (Red → Green → Refactor) cuando hay tests ejecutables.
-- **Commit y push los decide el humano.** No hagas commit ni push por tu cuenta.
+- **Commits:** permitidos **solo en una rama de trabajo** (hoy `feature/flujo-v2`), **un commit local por loop cerrado** (ver "Cómo ejecutar el trabajo"). **Nunca commitees en `main`, nunca hagas push, nunca reescribas historia** (`--amend`, `rebase`, `reset --hard`, `push --force`). El push y el merge a `main` los decide el humano.
 
 ## Cómo ejecutar el trabajo (loops)
 Trabaja `ALCANCE.md` §8 en orden, **un loop (L0, L1, …) a la vez**. Para cada loop:
@@ -18,6 +18,7 @@ Trabaja `ALCANCE.md` §8 en orden, **un loop (L0, L1, …) a la vez**. Para cada
 3. Verifica **solo con los tests del propio loop** (`flutter test <archivo>`; en backend, el vitest del módulo tocado). **NO compiles la app, NO levantes el emulador, NO uses Mobile MCP y NO corras la suite completa al cerrar un loop**: eso se hace una única vez en **L11**.
 4. **Registra en ODD** (obligatorio): por cada tarea del loop agrega una entrada a `odd/tasks/flujo-v2-registro.md` con el formato definido en `ALCANCE.md` §8 (Qué · Por qué · Para qué · Pruebas · Decisiones). Explica el *por qué* y el *para qué*, no solo el qué.
 5. Marca `[x]` las tareas hechas en `ALCANCE.md` y agrega **una línea** a la Bitácora (fecha · loop · tareas cerradas · tests del loop).
+6. **Commit del loop** (si estás en la rama de trabajo): confirma con `git branch --show-current` que NO estás en `main`; agrega solo los archivos del loop (nunca `.env`, secretos ni scripts temporales); mensaje `feat(L<n>): <resumen corto>` o `fix(L<n>): ...` con una línea explicando qué y por qué. Si cambiaste `backend/prisma/schema.prisma`, el commit incluye su migración en `backend/prisma/migrations/` (genérala con `prisma migrate diff`, sin borrar datos; no uses `migrate dev` si pide resetear la base). Si no hay rama de trabajo, no commitees y avisa.
 
 ### Modo continuo (autorizado por el dueño el 2026-11-09)
 El humano revisará **solo al final**. Tras cerrar un loop, **continúa con el siguiente sin esperar aprobación**, hasta completar L10 y luego ejecuta **L11 (revisión general final)**: analyze, suite completa, compilación y Mobile MCP, una sola vez.
