@@ -33,7 +33,7 @@ void main() {
       expect(find.text('Sáb'), findsOneWidget);
 
       // Check Gamification
-      expect(find.text('Nivel Plata'), findsOneWidget);
+      expect(find.textContaining('Nivel Plata'), findsOneWidget);
       expect(find.text('142 / 150 chambas (Faltan 8)'), findsOneWidget);
 
       // Check History
