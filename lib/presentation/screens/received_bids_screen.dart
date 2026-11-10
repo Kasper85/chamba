@@ -116,6 +116,245 @@ class _ReceivedBidsScreenState extends State<ReceivedBidsScreen> {
     return list;
   }
 
+  void _showPaymentConfirmationSheet(Bid bid) {
+    final agreedPrice = bid.counterAmount ?? bid.amount;
+    const serviceFee = 2.0;
+    final totalEscrow = agreedPrice + serviceFee;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: AppColors.canvas,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.muted.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.shield_outlined,
+                        color: AppColors.primary,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pago en Garantía (Escrow)',
+                            style: AppTypography.headlineSm.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                              fontSize: 18,
+                            ),
+                          ),
+                          Text(
+                            'Custodia 100% segura hasta tu conformidad',
+                            style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Card con desglose formal conforme a ALCANCE.md §3
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0x1F173B4D)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Precio de la chamba:',
+                            style: AppTypography.bodyMd.copyWith(color: AppColors.neutral),
+                          ),
+                          Text(
+                            'S/ ${agreedPrice.toStringAsFixed(2)}',
+                            style: AppTypography.bodyLgMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.neutral,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Tarifa de servicio CHAMBA:',
+                            style: AppTypography.bodyMd.copyWith(color: AppColors.muted),
+                          ),
+                          Text(
+                            'S/ ${serviceFee.toStringAsFixed(2)}',
+                            style: AppTypography.bodyMd.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Divider(height: 1, color: Color(0x1F173B4D)),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Total a retener en garantía:',
+                              style: AppTypography.bodyLgMedium.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'S/ ${totalEscrow.toStringAsFixed(2)}',
+                            style: AppTypography.headlineSm.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.secondary,
+                              fontSize: 20,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Banner resumen claro
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 16, color: Color(0xFF1D4ED8)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'S/ ${agreedPrice.toStringAsFixed(0)} + S/ 2 tarifa = S/ ${totalEscrow.toStringAsFixed(0)}',
+                          style: AppTypography.labelSm.copyWith(
+                            color: const Color(0xFF1E40AF),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                ChambaButton(
+                  label: 'Confirmar y Retener S/ ${totalEscrow.toStringAsFixed(2)}',
+                  leadingIcon: Icons.lock_outline,
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    await _executeAcceptAndHold(bid, agreedPrice, totalEscrow);
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar', style: TextStyle(color: AppColors.muted)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _executeAcceptAndHold(Bid bid, double agreedPrice, double totalEscrow) async {
+    try {
+      await widget.appState.holdEscrowFunds(
+        jobId: _currentJob.id,
+        amount: totalEscrow,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.error),
+              SizedBox(width: 8),
+              Text('Saldo insuficiente'),
+            ],
+          ),
+          content: Text(
+            'No cuentas con saldo suficiente en tu billetera CHAMBA para retener los S/ ${totalEscrow.toStringAsFixed(2)} de garantía en custodia (S/ ${agreedPrice.toStringAsFixed(0)} + S/ 2.00 tarifa).\n\nPor favor recarga saldo antes de confirmar el servicio.',
+            style: AppTypography.bodyMd,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    widget.appState.acceptBid(
+      jobId: _currentJob.id,
+      bidId: bid.id,
+    );
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => JobTrackingScreen(
+          appState: widget.appState,
+          job: widget.appState.activeJob!,
+        ),
+      ),
+    );
+  }
+
   void _showCounterOfferModal(Bid bid) {
     double counterValue = widget.job.budget;
 
@@ -752,54 +991,7 @@ class _ReceivedBidsScreenState extends State<ReceivedBidsScreen> {
                 final acceptButton = ChambaButton(
                   label: 'Aceptar S/. ${(bid.counterAmount ?? bid.amount).toStringAsFixed(0)}',
                   leadingIcon: Icons.check,
-                  onPressed: () async {
-                    final agreedAmount = bid.counterAmount ?? bid.amount;
-                    try {
-                      await widget.appState.holdEscrowFunds(
-                        jobId: _currentJob.id,
-                        amount: agreedAmount,
-                      );
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded, color: AppColors.error),
-                              SizedBox(width: 8),
-                              Text('Saldo insuficiente'),
-                            ],
-                          ),
-                          content: Text(
-                            'No cuentas con saldo suficiente en tu billetera CHAMBA para retener los S/. ${agreedAmount.toStringAsFixed(0)} de garantía en custodia.\n\nPor favor recarga saldo antes de confirmar el servicio.',
-                            style: AppTypography.bodyMd,
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: const Text('Entendido'),
-                            ),
-                          ],
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (!context.mounted) return;
-                    widget.appState.acceptBid(
-                      jobId: _currentJob.id,
-                      bidId: bid.id,
-                    );
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => JobTrackingScreen(
-                          appState: widget.appState,
-                          job: widget.appState.activeJob!,
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: () => _showPaymentConfirmationSheet(bid),
                 );
                 final counterButton = ChambaButton.secondary(
                   label: 'Contraofertar',

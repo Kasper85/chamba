@@ -4,22 +4,19 @@ import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
 import '../../core/widgets/chamba_card.dart';
 import '../../core/widgets/chamba_badge.dart';
-import '../../core/widgets/role_switcher_pill.dart';
 import '../../data/models/job_request.dart';
 import '../state/app_state.dart';
 import 'send_bid_screen.dart';
-import 'worker_my_jobs_screen.dart';
-import 'create_worker_profile_screen.dart';
-import 'chat_screen.dart';
+import 'worker_profile_screen.dart';
 
 class AvailableJobsScreen extends StatefulWidget {
   final AppState? appState;
-  final bool showBottomNav;
+  final VoidCallback? onProfileTap;
 
   const AvailableJobsScreen({
     super.key,
     this.appState,
-    this.showBottomNav = false,
+    this.onProfileTap,
   });
 
   @override
@@ -28,9 +25,8 @@ class AvailableJobsScreen extends StatefulWidget {
 
 class _AvailableJobsScreenState extends State<AvailableJobsScreen> {
   late AppState _appState;
-  int _selectedIndex = 0;
   String _selectedFilter = 'Todos';
-  bool _isAvailable = true;
+  bool get _isAvailable => _appState.isWorkerAvailable;
 
   final List<String> _filters = [
     'Todos',
@@ -120,22 +116,23 @@ class _AvailableJobsScreenState extends State<AvailableJobsScreen> {
             icon: const Icon(Icons.person_outline, color: AppColors.primary),
             tooltip: 'Mi Perfil de Técnico',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CreateWorkerProfileScreen(appState: _appState),
-                ),
-              );
+              if (widget.onProfileTap != null) {
+                widget.onProfileTap!();
+              } else {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => WorkerProfileScreen(appState: _appState),
+                  ),
+                );
+              }
             },
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: RoleSwitcherPill(appState: _appState, compact: true),
-          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () async => setState(() {}),
+          onRefresh: () async => await _appState.fetchJobs(),
           color: AppColors.secondary,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -143,6 +140,33 @@ class _AvailableJobsScreenState extends State<AvailableJobsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_appState.jobsError != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFCA5A5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Error al conectar con el servidor. Verifica tu conexión.',
+                            style: AppTypography.labelSm.copyWith(color: Colors.red.shade900),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _appState.fetchJobs(),
+                          child: const Text('Reintentar', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 // Top worker metrics banner
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -179,10 +203,7 @@ class _AvailableJobsScreenState extends State<AvailableJobsScreen> {
                         value: _isAvailable,
                         activeThumbColor: AppColors.tertiary,
                         onChanged: (val) {
-                          setState(() => _isAvailable = val);
-                          if (val) {
-                            _appState.syncWorkerLocation();
-                          }
+                          _appState.setWorkerAvailability(val);
                         },
                       ),
                     ],
@@ -279,79 +300,6 @@ class _AvailableJobsScreenState extends State<AvailableJobsScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: widget.showBottomNav
-          ? Container(
-        decoration: const BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x0F173B4D),
-              blurRadius: 10,
-              offset: Offset(0, -3),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-            if (index == 1) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => WorkerMyJobsScreen(appState: _appState),
-                ),
-              );
-            } else if (index == 2) {
-              if (_appState.jobs.isNotEmpty) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ChatScreen(
-                      appState: _appState,
-                      job: _appState.jobs.first,
-                    ),
-                  ),
-                );
-              }
-            } else if (index == 3) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CreateWorkerProfileScreen(appState: _appState),
-                ),
-              );
-            }
-          },
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: AppColors.secondary,
-          unselectedItemColor: AppColors.muted,
-          selectedLabelStyle: AppTypography.labelSm.copyWith(fontWeight: FontWeight.w700),
-          unselectedLabelStyle: AppTypography.labelSm,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.handyman_outlined),
-              activeIcon: Icon(Icons.handyman),
-              label: 'Chambas',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.work_history_outlined),
-              activeIcon: Icon(Icons.work_history),
-              label: 'Mis Trabajos',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Mensajes',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Mi Perfil',
-            ),
-          ],
-        ),
-      )
-          : null,
     );
   }
 

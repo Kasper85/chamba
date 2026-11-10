@@ -50,6 +50,7 @@ class UserAccount {
   final String? district;
   final String? address;
   final String status;
+  final String role;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final WorkerProfileData? workerProfile;
@@ -62,6 +63,7 @@ class UserAccount {
     this.district,
     this.address,
     this.status = 'ACTIVE',
+    this.role = 'CLIENT',
     this.createdAt,
     this.updatedAt,
     this.workerProfile,
@@ -76,6 +78,8 @@ class UserAccount {
 
   bool get hasWorkerProfile => workerProfile != null;
 
+  bool get isSupport => role.toUpperCase() == 'SUPPORT' || role.toUpperCase() == 'ADMIN';
+
   factory UserAccount.fromJson(Map<String, dynamic> json) {
     return UserAccount(
       id: json['id'] as String,
@@ -85,6 +89,7 @@ class UserAccount {
       district: json['district'] as String?,
       address: json['address'] as String?,
       status: json['status'] as String? ?? 'ACTIVE',
+      role: json['role'] as String? ?? 'CLIENT',
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
           : null,
@@ -106,7 +111,8 @@ class UserAccount {
       'district': district,
       'address': address,
       'status': status,
-      'createdAt': createdAt?.toIso8601String(),
+      'role': role,
+      'createdAt':  createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'workerProfile': workerProfile?.toJson(),
     };
@@ -119,6 +125,7 @@ class UserAccount {
     String? district,
     String? address,
     String? status,
+    String? role,
     WorkerProfileData? workerProfile,
   }) {
     return UserAccount(
@@ -129,6 +136,7 @@ class UserAccount {
       district: district ?? this.district,
       address: address ?? this.address,
       status: status ?? this.status,
+      role: role ?? this.role,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
       workerProfile: workerProfile ?? this.workerProfile,

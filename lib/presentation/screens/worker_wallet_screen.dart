@@ -319,7 +319,7 @@ class _WorkerWalletScreenState extends State<WorkerWalletScreen> {
   @override
   Widget build(BuildContext context) {
     final wallet = widget.appState.walletSummary;
-    final isReal = wallet != null && widget.appState.isAuthenticated;
+    final isReal = wallet != null;
     final availableBal = isReal ? wallet.availableBalance : 480.0;
     final escrowBal = isReal ? wallet.inEscrowBalance : 220.0;
 
@@ -858,14 +858,58 @@ class _WorkerWalletScreenState extends State<WorkerWalletScreen> {
                       ...wallet.recentTransactions.map((tx) {
                         final isIncome = tx.isIncome;
                         String title;
-                        if (tx.type == 'RELEASE_ESCROW') {
-                          title = 'Liberación de Escrow';
-                        } else if (tx.type == 'HOLD_ESCROW') {
-                          title = 'Retención en Custodia (Escrow)';
-                        } else if (tx.type == 'DEPOSIT') {
-                          title = 'Acreditación de Saldo';
-                        } else {
-                          title = 'Movimiento (${tx.type})';
+                        IconData iconData;
+                        Color circleBg;
+                        Color iconColor;
+
+                        switch (tx.type) {
+                          case 'RELEASE_ESCROW':
+                            title = 'Liberación de garantía';
+                            iconData = Icons.check_circle_outline;
+                            circleBg = const Color(0xFFDCFCE7);
+                            iconColor = const Color(0xFF16A34A);
+                            break;
+                          case 'HOLD_ESCROW':
+                            title = 'Depósito en garantía';
+                            iconData = Icons.lock_clock_outlined;
+                            circleBg = const Color(0xFFDBEAFE);
+                            iconColor = const Color(0xFF2563EB);
+                            break;
+                          case 'COMMISSION':
+                            title = 'Comisión de plataforma (8%)';
+                            iconData = Icons.percent_rounded;
+                            circleBg = const Color(0xFFFEF3C7);
+                            iconColor = const Color(0xFFD97706);
+                            break;
+                          case 'SERVICE_FEE':
+                            title = 'Tarifa de servicio';
+                            iconData = Icons.receipt_outlined;
+                            circleBg = const Color(0xFFFEF3C7);
+                            iconColor = const Color(0xFFD97706);
+                            break;
+                          case 'COMPENSATION':
+                            title = 'Compensación por cancelación';
+                            iconData = Icons.add_moderator_outlined;
+                            circleBg = const Color(0xFFDCFCE7);
+                            iconColor = const Color(0xFF16A34A);
+                            break;
+                          case 'REFUND_ESCROW':
+                            title = 'Reembolso de garantía';
+                            iconData = Icons.replay_circle_filled_outlined;
+                            circleBg = const Color(0xFFEDE9FE);
+                            iconColor = const Color(0xFF7C3AED);
+                            break;
+                          case 'DEPOSIT':
+                            title = 'Recarga / Depósito';
+                            iconData = Icons.account_balance_wallet_outlined;
+                            circleBg = const Color(0xFFDCFCE7);
+                            iconColor = const Color(0xFF16A34A);
+                            break;
+                          default:
+                            title = 'Movimiento (${tx.type})';
+                            iconData = isIncome ? Icons.check_circle_outline : Icons.receipt_long_outlined;
+                            circleBg = isIncome ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9);
+                            iconColor = isIncome ? const Color(0xFF16A34A) : const Color(0xFF64748B);
                         }
 
                         return Padding(
@@ -875,19 +919,13 @@ class _WorkerWalletScreenState extends State<WorkerWalletScreen> {
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: isIncome
-                                      ? const Color(0xFFDCFCE7)
-                                      : const Color(0xFFDBEAFE),
+                                  color: circleBg,
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  isIncome
-                                      ? Icons.check_circle_outline
-                                      : Icons.lock_clock_outlined,
+                                  iconData,
                                   size: 16,
-                                  color: isIncome
-                                      ? const Color(0xFF16A34A)
-                                      : const Color(0xFF2563EB),
+                                  color: iconColor,
                                 ),
                               ),
                               const SizedBox(width: 8),

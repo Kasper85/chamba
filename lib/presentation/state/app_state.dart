@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/job_request.dart';
+import '../../data/models/job_state_machine.dart';
 import '../../data/models/worker_profile.dart';
 import '../../data/models/bid.dart';
 import '../../data/models/chat_message.dart';
@@ -14,7 +15,9 @@ import '../../data/services/location_api_service.dart';
 import '../../data/services/finance_api_service.dart';
 import '../../data/services/storage_api_service.dart';
 import '../../data/services/ai_api_service.dart';
+import '../../data/services/jobs_api_service.dart';
 import '../../data/services/events_socket_service.dart';
+import '../../data/services/disputes_api_service.dart';
 import '../../data/models/wallet_summary.dart';
 import '../../data/models/ai_diagnostic_result.dart';
 import 'package:geolocator/geolocator.dart';
@@ -33,7 +36,9 @@ class AppState extends ChangeNotifier {
   late final FinanceApiService _financeApi;
   late final StorageApiService _storageApi;
   late final AiApiService _aiApi;
+  late final JobsApiService _jobsApi;
   late final EventsSocketService _eventsSocket;
+  late final DisputesApiService _disputesApi;
 
   UserRole _currentRole = UserRole.client;
   final List<JobRequest> _jobs = List.from(MockData.initialJobs);
@@ -116,8 +121,14 @@ class AppState extends ChangeNotifier {
 
   String get userInitials => _currentUser?.avatarInitials ?? 'CH';
   UserAccount? get currentUser => _currentUser;
+  set currentUser(UserAccount? val) {
+    _currentUser = val;
+    notifyListeners();
+  }
   String? get authToken => _authToken;
   bool get isAuthenticated => _currentUser != null && _authToken != null;
+  bool get isSupportUser => _currentUser?.isSupport ?? false;
+  DisputesApiService get disputesApi => _disputesApi;
 
   // Real Wallet State (Fase 4 FinTech Ledger)
   WalletSummary? _walletSummary;
@@ -125,6 +136,10 @@ class AppState extends ChangeNotifier {
   String? _walletError;
 
   WalletSummary? get walletSummary => _walletSummary;
+  set walletSummary(WalletSummary? value) {
+    _walletSummary = value;
+    notifyListeners();
+  }
   bool get isLoadingWallet => _isLoadingWallet;
   String? get walletError => _walletError;
   FinanceApiService get financeApi => _financeApi;
@@ -148,8 +163,73 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<DisputeDetailData?> getDisputeForJob(String jobId) async {
+    return _disputesApi.getDisputeByJobId(jobId: jobId, token: _authToken);
+  }
+
+  Future<DisputeDetailData?> resolveDispute({
+    required String disputeId,
+    required String verdict,
+    int? workerSplitPercent,
+    String? notes,
+  }) async {
+    final res = await _disputesApi.resolveDispute(
+      disputeId: disputeId,
+      verdict: verdict,
+      workerSplitPercent: workerSplitPercent,
+      notes: notes,
+      token: _authToken,
+    );
+    if (res != null) {
+      await fetchJobs(silent: true);
+      notifyListeners();
+    }
+    return res;
+  }
+
   StorageApiService get storageApi => _storageApi;
   AiApiService get aiApi => _aiApi;
+  JobsApiService get jobsApi => _jobsApi;
+
+  bool _isLoadingJobs = false;
+  String? _jobsError;
+
+  bool get isLoadingJobs => _isLoadingJobs;
+  String? get jobsError => _jobsError;
+
+  Future<void> fetchJobs({bool silent = false}) async {
+    if (!silent) {
+      _isLoadingJobs = true;
+      _jobsError = null;
+      notifyListeners();
+    }
+
+    try {
+      final role = isClient ? 'client' : 'worker';
+      final remoteJobs = await _jobsApi.getJobs(
+        role: role,
+        token: _authToken,
+      );
+      if (remoteJobs.isNotEmpty) {
+        for (final rj in remoteJobs) {
+          final idx = _jobs.indexWhere((j) => j.id == rj.id);
+          if (idx >= 0) {
+            _jobs[idx] = rj;
+          } else {
+            _jobs.insert(0, rj);
+          }
+        }
+      }
+      _jobsError = null;
+    } catch (e) {
+      _jobsError = e.toString();
+    } finally {
+      if (!silent) {
+        _isLoadingJobs = false;
+      }
+      notifyListeners();
+    }
+  }
 
   /// Ejecuta el flujo integral de Diagnóstico:
   /// 1. Solicita URL prefirmada (GET /storage/upload-url)
@@ -202,7 +282,9 @@ class AppState extends ChangeNotifier {
     FinanceApiService? financeApi,
     StorageApiService? storageApi,
     AiApiService? aiApi,
+    JobsApiService? jobsApi,
     EventsSocketService? eventsSocket,
+    DisputesApiService? disputesApi,
   })  : _sessionStorage = sessionStorage ?? SessionStorage(),
         _apiClient = apiClient ??
             ApiClient() {
@@ -211,11 +293,14 @@ class AppState extends ChangeNotifier {
     _financeApi = financeApi ?? FinanceApiService(apiClient: _apiClient);
     _storageApi = storageApi ?? StorageApiService(apiClient: _apiClient);
     _aiApi = aiApi ?? AiApiService(apiClient: _apiClient);
+    _jobsApi = jobsApi ?? JobsApiService(apiClient: _apiClient);
     _eventsSocket = eventsSocket ?? EventsSocketService(apiClient: _apiClient);
+    _disputesApi = disputesApi ?? DisputesApiService(apiClient: _apiClient);
 
     _eventsSocket.onNewBidReceived.listen(_handleIncomingBid);
     _eventsSocket.onCounterOfferReceived.listen(_handleIncomingCounterOffer);
     _eventsSocket.onBidAccepted.listen(_handleIncomingBidAccepted);
+    _eventsSocket.onNewJobAvailable.listen(_handleIncomingNewJob);
     _eventsSocket.onConnectionChange.listen((_) => notifyListeners());
 
     _activeJobId = _jobs.first.id;
@@ -357,6 +442,7 @@ class AppState extends ChangeNotifier {
   }
 
   UserRole get currentRole => _currentRole;
+  set currentRole(UserRole role) => switchRole(role);
   bool get isClient => _currentRole == UserRole.client;
   bool get isWorker => _currentRole == UserRole.worker;
 
@@ -373,12 +459,16 @@ class AppState extends ChangeNotifier {
     final user = _currentUser;
     if (user != null) {
       final wp = user.workerProfile;
+      final workerId = wp?.id ?? 'worker-${user.id}';
+      final completedCount = (wp?.completedJobs ?? 0) +
+          _jobs.where((j) => (j.workerId == workerId || j.workerId == user.id) && j.status == JobStatus.completed).length;
+
       return WorkerProfile(
-        id: wp?.id ?? 'worker-${user.id}',
+        id: workerId,
         name: user.fullName,
         avatarInitials: user.avatarInitials,
         rating: wp?.rating ?? 5.0,
-        completedJobs: wp?.completedJobs ?? 0,
+        completedJobs: completedCount,
         isVerified: true,
         isIdVerified: true,
         hasCleanRecord: true,
@@ -391,10 +481,11 @@ class AppState extends ChangeNotifier {
         serviceRadiusKm: 15,
         district: user.district ?? 'Chiclayo',
         phone: user.phone ?? '+51 974 000 000',
-        dni: '45892314',
+        dni: '72384910',
         experienceYears: 5,
         portfolioCases: _workers.first.portfolioCases,
         reviews: _workers.first.reviews,
+        isAvailable: _isWorkerAvailable,
       );
     }
     return _workers.first;
@@ -411,9 +502,80 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  void addJob(JobRequest job) {
+    final idx = _jobs.indexWhere((j) => j.id == job.id);
+    if (idx >= 0) {
+      _jobs[idx] = job;
+    } else {
+      _jobs.insert(0, job);
+    }
+    notifyListeners();
+  }
+
+  set activeJob(JobRequest? job) {
+    if (job != null) {
+      final idx = _jobs.indexWhere((j) => j.id == job.id);
+      if (idx >= 0) {
+        _jobs[idx] = job;
+      } else {
+        _jobs.insert(0, job);
+      }
+      _activeJobId = job.id;
+    } else {
+      _activeJobId = null;
+    }
+    notifyListeners();
+  }
+
   List<JobRequest> get clientJobs {
     final currentId = _currentUser?.id ?? 'client-1';
     return _jobs.where((j) => j.clientId == currentId || j.clientId == 'client-1').toList();
+  }
+
+  /// Métricas reales de cliente calculadas a partir de sus solicitudes (§7, §8 L9)
+  int get clientJobsCount => clientJobs.length;
+
+  int get clientCompletedJobsCount =>
+      clientJobs.where((j) => j.status == JobStatus.completed).length;
+
+  double get clientAverageRating {
+    final ratedJobs = clientJobs.where((j) => j.rating != null && j.rating! > 0).toList();
+    if (ratedJobs.isEmpty) return 5.0;
+    final total = ratedJobs.map((j) => j.rating!).reduce((a, b) => a + b);
+    return double.parse((total / ratedJobs.length).toStringAsFixed(1));
+  }
+
+  bool _isWorkerAvailable = true;
+  bool get isWorkerAvailable => _isWorkerAvailable;
+
+  /// Alterna la disponibilidad del chambeador y la sincroniza con el backend (ALCANCE.md §8 L9)
+  Future<void> setWorkerAvailability(bool available) async {
+    _isWorkerAvailable = available;
+    notifyListeners();
+
+    if (!ApiClient.useMocks && _authToken != null) {
+      try {
+        await _apiClient.put(
+          '/api/v1/worker-profile/me/availability',
+          body: {'isAvailable': available},
+          token: _authToken,
+        );
+      } catch (e) {
+        debugPrint('Error actualizando disponibilidad del técnico en backend: $e');
+      }
+    }
+
+    if (available) {
+      syncWorkerLocation();
+    }
+  }
+
+  bool get hasJobPendingConfirmation =>
+      clientJobs.any((j) => j.status == JobStatus.forConfirmation);
+
+  JobRequest? get jobPendingConfirmation {
+    final matches = clientJobs.where((j) => j.status == JobStatus.forConfirmation);
+    return matches.isNotEmpty ? matches.first : null;
   }
 
   List<JobRequest> get availableWorkerJobs =>
@@ -424,8 +586,7 @@ class AppState extends ChangeNotifier {
     return _jobs
         .where((j) =>
             j.workerId == workerId ||
-            j.bids.any((b) => b.workerId == workerId) ||
-            j.workerId == 'worker-1')
+            j.bids.any((b) => b.workerId == workerId))
         .toList();
   }
 
@@ -554,7 +715,7 @@ class AppState extends ChangeNotifier {
       urgency: urgency,
       status: JobStatus.searching,
       createdAt: DateTime.now(),
-      clientId: 'client-1',
+      clientId: _currentUser?.id ?? 'client-1',
       clientName: clientName,
       confirmationCode: generatedPin,
       securityPin: generatedPin,
@@ -584,7 +745,108 @@ class AppState extends ChangeNotifier {
     );
 
     notifyListeners();
+
+    if (_authToken != null) {
+      _syncNewJobToBackend(newJob);
+    }
+
     return newJob;
+  }
+
+  Future<void> _syncNewJobToBackend(JobRequest localJob) async {
+    try {
+      final remoteJob = await _jobsApi.createJob(
+        title: localJob.title,
+        description: localJob.description,
+        category: localJob.categoryId,
+        budget: localJob.budget,
+        district: localJob.district,
+        address: localJob.address,
+        reference: localJob.reference,
+        latitude: localJob.latitude,
+        longitude: localJob.longitude,
+        isSos: localJob.isSos,
+        urgency: localJob.urgency,
+        token: _authToken,
+      );
+
+      final idx = _jobs.indexWhere((j) => j.id == localJob.id);
+      if (idx >= 0) {
+        _jobs[idx] = remoteJob;
+        if (_activeJobId == localJob.id) {
+          _activeJobId = remoteJob.id;
+        }
+      }
+      _eventsSocket.joinJobRoom(remoteJob.id);
+      notifyListeners();
+    } catch (e) {
+      if (!ApiClient.useMocks) {
+        _jobsError = e.toString();
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Publica una solicitud de trabajo esperando la persistencia en el backend.
+  Future<JobRequest> publishJob({
+    required String title,
+    required String categoryId,
+    required String categoryName,
+    required String description,
+    required double budget,
+    required String district,
+    required String address,
+    required String urgency,
+    double latitude = -6.7760,
+    double longitude = -79.8436,
+    String reference = '',
+    bool isSos = false,
+    double urgencyMultiplier = 1.0,
+  }) async {
+    if (_authToken != null) {
+      try {
+        final persisted = await _jobsApi.createJob(
+          title: title,
+          description: description,
+          category: categoryId,
+          budget: budget,
+          district: district,
+          address: address,
+          reference: reference,
+          latitude: latitude,
+          longitude: longitude,
+          isSos: isSos,
+          urgency: urgency,
+          token: _authToken,
+        );
+        _jobs.insert(0, persisted);
+        _activeJobId = persisted.id;
+        _eventsSocket.joinJobRoom(persisted.id);
+        notifyListeners();
+        return persisted;
+      } catch (e) {
+        if (!ApiClient.useMocks) {
+          _jobsError = e.toString();
+          notifyListeners();
+          rethrow;
+        }
+      }
+    }
+    return createJobRequest(
+      title: title,
+      categoryId: categoryId,
+      categoryName: categoryName,
+      description: description,
+      budget: budget,
+      district: district,
+      address: address,
+      urgency: urgency,
+      latitude: latitude,
+      longitude: longitude,
+      reference: reference,
+      isSos: isSos,
+      urgencyMultiplier: urgencyMultiplier,
+    );
   }
 
   // Security PIN Verification (Face-to-face trust handshake)
@@ -615,6 +877,65 @@ class AppState extends ChangeNotifier {
       return true;
     }
     return false;
+  }
+
+  /// Avanza la fase de una chamba respetando la máquina de estados y roles (ALCANCE.md §8 L4)
+  Future<bool> advanceJobPhase({
+    required String jobId,
+    required JobStatus nextPhase,
+    String? pin,
+    String? photoBefore,
+    String? photoAfter,
+  }) async {
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
+    if (jobIndex == -1) return false;
+    final currentJob = _jobs[jobIndex];
+
+    if (!JobStateMachine.canTransition(currentJob.status, nextPhase)) {
+      return false;
+    }
+
+    if (!ApiClient.useMocks && _authToken != null) {
+      final updated = await _jobsApi.updatePhase(
+        jobId: jobId,
+        phase: nextPhase,
+        pin: pin,
+        photoBefore: photoBefore,
+        photoAfter: photoAfter,
+        token: _authToken,
+      );
+      _jobs[jobIndex] = updated;
+      notifyListeners();
+      return true;
+    }
+
+    var updated = currentJob.copyWith(status: nextPhase);
+    if (nextPhase == JobStatus.inProgress) {
+      if (pin != null &&
+          (pin.trim() == currentJob.securityPin.trim() ||
+              pin.trim() == currentJob.confirmationCode.trim())) {
+        updated = updated.copyWith(
+          isPinVerified: true,
+          beforePhotoTag: photoBefore ?? currentJob.beforePhotoTag,
+          escrowStatus: EscrowStatus.beforePhotoUploaded,
+        );
+      } else {
+        return false;
+      }
+    } else if (nextPhase == JobStatus.forConfirmation) {
+      updated = updated.copyWith(
+        afterPhotoTag: photoAfter ?? currentJob.afterPhotoTag,
+        escrowStatus: EscrowStatus.afterPhotoUploaded,
+      );
+    } else if (nextPhase == JobStatus.completed) {
+      updated = updated.copyWith(
+        escrowStatus: EscrowStatus.released,
+        isPaid: true,
+      );
+    }
+    _jobs[jobIndex] = updated;
+    notifyListeners();
+    return true;
   }
 
   // Escrow Phase 1: Deposit funds into protected guarantee
@@ -731,19 +1052,79 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void cancelJob(String jobId, {String? reason}) {
+  /// Cancelación de chamba según las reglas de ALCANCE.md §4:
+  /// - Antes de depositar: sin movimiento de dinero.
+  /// - Depositado, técnico aún no sale: Reembolso total.
+  /// - Técnico EN_CAMINO: Reembolso − compensación. Chambeador recibe compensación (10% de P, mín S/ 5, máx S/ 20).
+  /// - Técnico no llega (>30 min de retraso): Reembolso total + incidente de reputación.
+  /// - Chambeador cancela tras el depósito: Reembolso total + incidente de reputación.
+  /// - 3 incidentes en 30 días → suspensión temporal.
+  /// - PIN validado en adelante: Disputa (§5), no se puede cancelar directamente.
+  /// - La tarifa de servicio (S/ 2) se reembolsa en toda cancelación.
+  Future<bool> cancelJob(
+    String jobId, {
+    String? reason,
+    bool isWorkerDelay = false,
+  }) async {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
-    if (jobIndex == -1) return;
+    if (jobIndex == -1) return false;
 
     final job = _jobs[jobIndex];
-    _jobs[jobIndex] = job.copyWith(status: JobStatus.cancelled);
+
+    // Regla: Si el PIN ya fue validado (en ejecución o por confirmar), requiere soporte/disputa
+    if (job.status == JobStatus.inProgress ||
+        job.status == JobStatus.forConfirmation ||
+        job.status == JobStatus.completed) {
+      return false;
+    }
+
+    if (!ApiClient.useMocks && _authToken != null) {
+      try {
+        await _jobsApi.cancelJob(
+          jobId: jobId,
+          reason: reason ?? 'Cancelado por el usuario',
+          isWorkerDelay: isWorkerDelay,
+          token: _authToken,
+        );
+      } catch (e) {
+        // En caso de fallo de red
+      }
+    }
+
+    // Cálculos de compensación y reembolso local / mock
+    final hasDeposit = job.escrowStatus == EscrowStatus.heldInEscrow ||
+        job.escrowStatus == EscrowStatus.beforePhotoUploaded ||
+        job.escrowStatus == EscrowStatus.afterPhotoUploaded;
+
+    double refundAmount = 0.0;
+    double compensation = 0.0;
+
+    if (hasDeposit) {
+      final agreedPrice = job.budget;
+      if (job.status == JobStatus.onTheWay && !isWorkerDelay) {
+        // Técnico en camino cancelado por cliente: 10% compensación acotada entre S/ 5 y S/ 20
+        final rawComp = agreedPrice * 0.10;
+        compensation = rawComp.clamp(5.0, 20.0);
+        refundAmount = (agreedPrice + 2.0) - compensation;
+      } else {
+        // Técnico aún no sale, o técnico canceló, o técnico no llegó (>30m retraso): reembolso total
+        refundAmount = agreedPrice + 2.0;
+      }
+    }
+
+    _jobs[jobIndex] = job.copyWith(
+      status: JobStatus.cancelled,
+      escrowStatus: EscrowStatus.refunded,
+    );
 
     _notifications.insert(
       0,
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: 'Solicitud cancelada',
-        body: 'Has cancelado la solicitud "${job.title}".',
+        body: compensation > 0
+            ? 'Cancelación procesada. Reembolso: S/ ${refundAmount.toStringAsFixed(2)}. Compensación al técnico: S/ ${compensation.toStringAsFixed(2)}.'
+            : 'Has cancelado la solicitud "${job.title}". Reembolso total: S/ ${refundAmount.toStringAsFixed(2)}.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.cancel_outlined,
@@ -751,6 +1132,7 @@ class AppState extends ChangeNotifier {
     );
 
     notifyListeners();
+    return true;
   }
 
   // Socket.IO & Escrow Real-Time Integrations (Fase 4 S5 & S6)
@@ -904,6 +1286,52 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _handleIncomingNewJob(Map<String, dynamic> data) {
+    final jobId = data['id']?.toString();
+    if (jobId == null) return;
+    if (_jobs.any((j) => j.id == jobId)) return;
+
+    final title = data['title']?.toString() ?? 'Nueva chamba disponible';
+    final category = data['category']?.toString() ?? 'general';
+    final budget = (data['budget'] as num?)?.toDouble() ?? 50.0;
+    final district = data['district']?.toString() ?? 'Chiclayo';
+    final isSos = data['isSos'] == true;
+
+    final newJob = JobRequest(
+      id: jobId,
+      title: title,
+      categoryId: category,
+      categoryName: category,
+      description: 'Solicitud disponible en Chiclayo ($district)',
+      budget: budget,
+      district: district,
+      address: district,
+      distanceKm: 2.0,
+      urgency: isSos ? 'ALTA' : 'MEDIA',
+      status: JobStatus.searching,
+      createdAt: DateTime.now(),
+      clientId: 'client-remote',
+      clientName: 'Cliente Chamba',
+      confirmationCode: '4829',
+      isSos: isSos,
+      bids: const [],
+    );
+
+    _jobs.insert(0, newJob);
+    _notifications.insert(
+      0,
+      AppNotification(
+        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
+        title: isSos ? '🚨 ¡Nueva Emergencia SOS Disponible!' : '📢 ¡Nueva Chamba Publicada!',
+        body: '$title (S/. ${budget.toStringAsFixed(0)}) en $district.',
+        timestamp: DateTime.now(),
+        relatedJobId: jobId,
+        icon: isSos ? Icons.emergency_rounded : Icons.campaign_rounded,
+      ),
+    );
+    notifyListeners();
+  }
+
   /// Retiene fondos en custodia Escrow (POST /api/v1/finance/escrow/hold)
   /// Maneja 400 (saldo insuficiente) y 409 (ya retenido)
   Future<bool> holdEscrowFunds({
@@ -998,6 +1426,58 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
+  /// Reembolsa fondos en custodia Escrow al cliente (POST /api/v1/finance/escrow/refund)
+  Future<bool> refundEscrowFunds({
+    required String jobId,
+    bool isWorkerOnTheWay = false,
+    String? workerUserId,
+  }) async {
+    final token = _authToken;
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
+    if (jobIndex == -1) return false;
+
+    if (token != null && token.isNotEmpty) {
+      try {
+        await _financeApi.refundEscrow(
+          token: token,
+          jobRequestId: jobId,
+          isWorkerOnTheWay: isWorkerOnTheWay,
+          workerUserId: workerUserId,
+        );
+        fetchWallet();
+      } on ApiException catch (e) {
+        if (e.statusCode == 409) {
+          // Ya reembolsado previamente
+        } else {
+          rethrow;
+        }
+      } catch (e) {
+        rethrow;
+      }
+    }
+
+    final job = _jobs[jobIndex];
+    _jobs[jobIndex] = job.copyWith(
+      escrowStatus: EscrowStatus.refunded,
+      status: JobStatus.cancelled,
+    );
+
+    _notifications.insert(
+      0,
+      AppNotification(
+        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
+        title: '↩️ Garantía Reembolsada',
+        body: 'Se reembolsaron los fondos en custodia de la solicitud #${job.title}.',
+        timestamp: DateTime.now(),
+        relatedJobId: jobId,
+        icon: Icons.replay_circle_filled_rounded,
+      ),
+    );
+
+    notifyListeners();
+    return true;
+  }
+
   void submitBid({
     required String jobId,
     required double amount,
@@ -1056,6 +1536,16 @@ class AppState extends ChangeNotifier {
       voiceTranscriptPreview: voiceTranscriptPreview,
     );
 
+    if (_authToken != null) {
+      _jobsApi.createBid(
+        jobId: jobId,
+        amount: amount,
+        message: message,
+        etaMinutes: etaMinutes,
+        token: _authToken,
+      ).then((_) {}, onError: (_) {});
+    }
+
     _notifications.insert(
       0,
       AppNotification(
@@ -1103,7 +1593,7 @@ class AppState extends ChangeNotifier {
       ChatMessage(
         id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
         jobId: jobId,
-        senderId: 'client-1',
+        senderId: _currentUser?.id ?? 'client-1',
         senderName: clientName,
         isFromWorker: false,
         text: 'He enviado una contraoferta por S/. ${counterAmount.toStringAsFixed(0)}',
@@ -1180,12 +1670,20 @@ class AppState extends ChangeNotifier {
       agreedAmount: agreedPrice,
     );
 
+    if (_authToken != null) {
+      _jobsApi.acceptBid(
+        jobId: jobId,
+        bidId: bidId,
+        token: _authToken,
+      ).then((_) {}, onError: (_) {});
+    }
+
     // Send agreement message to chat
     _chatMessages.add(
       ChatMessage(
         id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
         jobId: jobId,
-        senderId: 'client-1',
+        senderId: _currentUser?.id ?? 'client-1',
         senderName: clientName,
         isFromWorker: false,
         text: '¡Trato cerrado por S/. ${agreedPrice.toStringAsFixed(0)}! Código de seguridad generado.',
@@ -1290,6 +1788,50 @@ class AppState extends ChangeNotifier {
       rating: rating,
       reviewComment: reviewComment,
     );
+
+    notifyListeners();
+  }
+
+  /// Envía la calificación mutua (1 a 5 estrellas), comentario y propina opcional (ALCANCE.md §6, §8 L8).
+  Future<void> submitRating({
+    required String jobId,
+    required int stars,
+    String? comment,
+    double tipAmount = 0.0,
+  }) async {
+    final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
+    if (jobIndex != -1) {
+      _jobs[jobIndex] = _jobs[jobIndex].copyWith(
+        rating: stars,
+        reviewComment: comment,
+      );
+    }
+
+    _notifications.insert(
+      0,
+      AppNotification(
+        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Calificación registrada',
+        body: 'Has calificado con $stars estrellas${tipAmount > 0 ? " y propina de S/ ${tipAmount.toStringAsFixed(0)}" : ""}.',
+        timestamp: DateTime.now(),
+        relatedJobId: jobId,
+        icon: Icons.star_rounded,
+      ),
+    );
+
+    if (!ApiClient.useMocks && _authToken != null) {
+      try {
+        await _jobsApi.createRating(
+          jobId: jobId,
+          stars: stars,
+          comment: comment,
+          tipAmount: tipAmount > 0 ? tipAmount : null,
+          token: _authToken,
+        );
+      } catch (e) {
+        debugPrint('Error enviando calificación al backend: $e');
+      }
+    }
 
     notifyListeners();
   }

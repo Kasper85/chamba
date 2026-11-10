@@ -50,7 +50,11 @@ class _WorkerMyJobsScreenState extends State<WorkerMyJobsScreen>
 
     final activeJobs = allWorkerJobs.where((j) {
       final isAccepted = j.workerId == workerId || j.acceptedBidId != null;
-      return isAccepted && (j.status == JobStatus.onTheWay || j.status == JobStatus.inProgress);
+      return isAccepted &&
+          (j.status == JobStatus.onTheWay ||
+              j.status == JobStatus.onSite ||
+              j.status == JobStatus.inProgress ||
+              j.status == JobStatus.forConfirmation);
     }).toList();
 
     final negotiatingJobs = allWorkerJobs.where((j) {

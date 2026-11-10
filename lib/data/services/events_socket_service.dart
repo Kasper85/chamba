@@ -12,6 +12,7 @@ class EventsSocketService {
   final _newBidController = StreamController<Map<String, dynamic>>.broadcast();
   final _counterOfferController = StreamController<Map<String, dynamic>>.broadcast();
   final _bidAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _newJobAvailableController = StreamController<Map<String, dynamic>>.broadcast();
 
   EventsSocketService({required this.apiClient});
 
@@ -20,6 +21,7 @@ class EventsSocketService {
   Stream<Map<String, dynamic>> get onNewBidReceived => _newBidController.stream;
   Stream<Map<String, dynamic>> get onCounterOfferReceived => _counterOfferController.stream;
   Stream<Map<String, dynamic>> get onBidAccepted => _bidAcceptedController.stream;
+  Stream<Map<String, dynamic>> get onNewJobAvailable => _newJobAvailableController.stream;
 
   /// Inicializa la conexión Socket.IO con el token JWT en el handshake
   void connect(String token) {
@@ -84,6 +86,12 @@ class EventsSocketService {
     _socket!.on('bidAccepted', (data) {
       if (data is Map) {
         _bidAcceptedController.add(Map<String, dynamic>.from(data));
+      }
+    });
+
+    _socket!.on('newJobAvailable', (data) {
+      if (data is Map) {
+        _newJobAvailableController.add(Map<String, dynamic>.from(data));
       }
     });
 
@@ -180,5 +188,6 @@ class EventsSocketService {
     _newBidController.close();
     _counterOfferController.close();
     _bidAcceptedController.close();
+    _newJobAvailableController.close();
   }
 }

@@ -87,4 +87,39 @@ class FinanceApiService {
       response.data,
     );
   }
+
+  /// Reembolsa fondos de Escrow al cliente (con compensación opcional al técnico si estaba en camino)
+  Future<Map<String, dynamic>> refundEscrow({
+    required String token,
+    required String jobRequestId,
+    bool isWorkerOnTheWay = false,
+    String? workerUserId,
+  }) async {
+    final body = <String, dynamic>{
+      'jobRequestId': jobRequestId,
+      'isWorkerOnTheWay': isWorkerOnTheWay,
+    };
+    if (workerUserId != null) {
+      body['workerUserId'] = workerUserId;
+    }
+
+    final response = await apiClient.post(
+      '/api/v1/finance/escrow/refund',
+      token: token,
+      body: body,
+    );
+
+    if (response.isSuccess && response.data != null) {
+      return response.data as Map<String, dynamic>;
+    }
+
+    final errorMsg = response.data is Map
+        ? (response.data['message']?.toString() ?? 'Error al reembolsar fondos de custodia')
+        : 'Error al reembolsar fondos de custodia';
+    throw ApiException(
+      errorMsg,
+      response.statusCode,
+      response.data,
+    );
+  }
 }

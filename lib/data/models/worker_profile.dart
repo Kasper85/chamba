@@ -69,6 +69,7 @@ class WorkerProfile {
   final double? longitude;
   final double? distanceKm;
   final bool isRealBackendWorker;
+  final bool isAvailable;
 
   const WorkerProfile({
     required this.id,
@@ -95,6 +96,7 @@ class WorkerProfile {
     this.longitude,
     this.distanceKm,
     this.isRealBackendWorker = false,
+    this.isAvailable = true,
   });
 
   static String _extractInitials(String name) {
@@ -148,6 +150,7 @@ class WorkerProfile {
       longitude: (json['longitude'] as num?)?.toDouble(),
       distanceKm: (json['distanceKm'] as num?)?.toDouble(),
       isRealBackendWorker: true,
+      isAvailable: (json['isAvailable'] as bool?) ?? true,
     );
   }
 
@@ -176,6 +179,7 @@ class WorkerProfile {
     double? longitude,
     double? distanceKm,
     bool? isRealBackendWorker,
+    bool? isAvailable,
   }) {
     return WorkerProfile(
       id: id ?? this.id,
@@ -202,6 +206,7 @@ class WorkerProfile {
       longitude: longitude ?? this.longitude,
       distanceKm: distanceKm ?? this.distanceKm,
       isRealBackendWorker: isRealBackendWorker ?? this.isRealBackendWorker,
+      isAvailable: isAvailable ?? this.isAvailable,
     );
   }
 }

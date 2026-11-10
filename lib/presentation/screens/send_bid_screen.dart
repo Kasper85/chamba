@@ -33,6 +33,7 @@ class _SendBidScreenState extends State<SendBidScreen> with SingleTickerProvider
     text: 'Tengo las herramientas y repuestos listos. Puedo salir de inmediato.',
   );
   bool _isSubmitting = false;
+  bool _hasConfirmedPriceDeviation = false;
 
   // Voice Note State
   bool _isRecording = false;
@@ -148,6 +149,57 @@ class _SendBidScreenState extends State<SendBidScreen> with SingleTickerProvider
   }
 
   void _submitBid() async {
+    // Validación de monto mínimo duro: S/ 20.00 (ALCANCE.md §3, §8 L10)
+    if (_proposedAmount < 20.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ La oferta mínima en CHAMBA es de S/ 20.00 (ALCANCE.md §3).'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Alerta suave de IA si el precio es < 50% o > 300% del estimado del cliente (ALCANCE.md §3, §8 L10)
+    final clientBudget = widget.job.budget;
+    final isDeviated = _proposedAmount < (clientBudget * 0.5) ||
+        _proposedAmount > (clientBudget * 3.0);
+
+    if (isDeviated && !_hasConfirmedPriceDeviation) {
+      final isTooLow = _proposedAmount < (clientBudget * 0.5);
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: Color(0xFFD97706)),
+              SizedBox(width: 8),
+              Text('¿Seguro de tu oferta?'),
+            ],
+          ),
+          content: Text(
+            isTooLow
+                ? 'Tu oferta de S/ ${_proposedAmount.toStringAsFixed(0)} es menor al 50% del presupuesto de referencia del cliente (S/ ${clientBudget.toStringAsFixed(0)}).'
+                : 'Tu oferta de S/ ${_proposedAmount.toStringAsFixed(0)} supera el 300% del presupuesto de referencia del cliente (S/ ${clientBudget.toStringAsFixed(0)}).',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Revisar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Sí, enviar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+      _hasConfirmedPriceDeviation = true;
+    }
+
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 500));
 
@@ -343,7 +395,7 @@ class _SendBidScreenState extends State<SendBidScreen> with SingleTickerProvider
               PriceDialStepper(
                 currentPrice: _proposedAmount,
                 recommendedPrice: clientBudget,
-                minPrice: 15.0,
+                minPrice: 20.0,
                 maxPrice: 1500.0,
                 label: 'Tu Propuesta de Precio en Soles',
                 isSosSurge: widget.job.isSos,
@@ -400,6 +452,42 @@ class _SendBidScreenState extends State<SendBidScreen> with SingleTickerProvider
                     ),
                   ],
                 ),
+              ),
+
+              // Desglose transparente de comisión (8%) conforme a ALCANCE.md §3
+              Builder(
+                builder: (context) {
+                  final commission = (_proposedAmount * 0.08);
+                  final netWorker = (_proposedAmount - commission);
+                  return Container(
+                    margin: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.verified_outlined,
+                          size: 18,
+                          color: Color(0xFF16A34A),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Ofertas S/ ${_proposedAmount.toStringAsFixed(0)} → recibes S/ ${netWorker.toStringAsFixed(0)} (comisión 8%)',
+                            style: AppTypography.labelSm.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF166534),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 22),
 

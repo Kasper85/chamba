@@ -6,7 +6,6 @@ import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
 import '../../core/widgets/chamba_card.dart';
 import '../../core/widgets/chamba_badge.dart';
-import '../../core/widgets/role_switcher_pill.dart';
 import '../../data/models/category.dart';
 import '../../data/models/job_request.dart';
 import '../../data/models/worker_profile.dart';
@@ -15,18 +14,14 @@ import '../widgets/chamba_interactive_map.dart';
 import 'post_job_screen.dart';
 import 'received_bids_screen.dart';
 import 'job_tracking_screen.dart';
-import 'role_selection_screen.dart';
 import 'worker_profile_detail_screen.dart';
-import 'chat_screen.dart';
 
 class ClientHomeScreen extends StatefulWidget {
   final AppState? appState;
-  final bool showBottomNav;
 
   const ClientHomeScreen({
     super.key,
     this.appState,
-    this.showBottomNav = false,
   });
 
   @override
@@ -37,7 +32,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
   with SingleTickerProviderStateMixin {
   late AppState _appState;
   late AnimationController _radarController;
-  int _selectedIndex = 0;
   bool _showMap = true;
 
   @override
@@ -96,7 +90,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final activeJobs = _appState.jobs;
+    final activeJobs = _appState.clientJobs;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -110,65 +104,82 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Top Header: Greeting, Location & Mode Switcher
-                LayoutBuilder(
-                  builder: (context, headerConstraints) {
-                    final isCompactHeader = headerConstraints.maxWidth < 360;
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                if (_appState.jobsError != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFCA5A5)),
+                    ),
+                    child: Row(
                       children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Text(
+                            'Error al sincronizar solicitudes. Comprueba tu conexión.',
+                            style: AppTypography.labelSm.copyWith(color: Colors.red.shade900),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _appState.fetchJobs(),
+                          child: const Text('Reintentar', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                // Top Header: Greeting & Location
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hola, ${_appState.clientName.split(" ").first} 👋',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.headlineSm.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
                             children: [
-                              Text(
-                                'Hola, ${_appState.clientName.split(" ").first} 👋',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.headlineSm.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.primary,
+                              const Icon(
+                                Icons.location_on_outlined,
+                                size: 14,
+                                color: AppColors.secondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  _appState.clientDistrict,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.labelMd.copyWith(
+                                    color: AppColors.neutral,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.location_on_outlined,
-                                    size: 14,
-                                    color: AppColors.secondary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      _appState.clientDistrict,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppTypography.labelMd.copyWith(
-                                        color: AppColors.neutral,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.keyboard_arrow_down,
-                                    size: 16,
-                                    color: AppColors.muted,
-                                  ),
-                                ],
+                              const Icon(
+                                Icons.keyboard_arrow_down,
+                                size: 16,
+                                color: AppColors.muted,
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        RoleSwitcherPill(
-                          appState: _appState,
-                          compact: isCompactHeader,
-                        ),
-                      ],
-                    );
-                  },
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 18),
@@ -325,84 +336,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
           ),
         ),
       ),
-      bottomNavigationBar: widget.showBottomNav
-          ? Container(
-        decoration: const BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x0F173B4D),
-              blurRadius: 10,
-              offset: Offset(0, -3),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-            if (index == 1) {
-              if (_appState.jobs.isNotEmpty) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ReceivedBidsScreen(
-                      appState: _appState,
-                      job: _appState.jobs.first,
-                    ),
-                  ),
-                );
-              }
-            } else if (index == 2) {
-              if (_appState.jobs.isNotEmpty) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ChatScreen(
-                      appState: _appState,
-                      job: _appState.jobs.first,
-                    ),
-                  ),
-                );
-              }
-            } else if (index == 3) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const RoleSelectionScreen(),
-                ),
-              );
-            }
-          },
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: AppColors.secondary,
-          unselectedItemColor: AppColors.muted,
-          selectedLabelStyle: AppTypography.labelSm.copyWith(fontWeight: FontWeight.w700),
-          unselectedLabelStyle: AppTypography.labelSm,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Inicio',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_outlined),
-              activeIcon: Icon(Icons.assignment),
-              label: 'Solicitudes',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Mensajes',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Perfil',
-            ),
-          ],
-        ),
-      )
-          : null,
     );
   }
 
@@ -640,7 +573,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
 
   Widget _buildActiveJobCard(JobRequest job) {
     final hasOffers = job.bids.isNotEmpty;
-    final isOnTheWayOrActive = job.status == JobStatus.onTheWay || job.status == JobStatus.inProgress;
+    final isOnTheWayOrActive = job.status == JobStatus.onTheWay ||
+        job.status == JobStatus.onSite ||
+        job.status == JobStatus.inProgress ||
+        job.status == JobStatus.forConfirmation;
     final isSos = job.isSos;
 
     return Padding(

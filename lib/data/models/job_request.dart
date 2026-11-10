@@ -1,12 +1,18 @@
 import 'bid.dart';
+import 'job_state_machine.dart';
 
 enum JobStatus {
-  searching,
-  negotiating,
-  onTheWay,
-  inProgress,
-  completed,
-  cancelled,
+  searching,       // BUSCANDO
+  negotiating,     // NEGOCIANDO
+  accepted,        // ACEPTADA
+  onTheWay,        // EN_CAMINO
+  onSite,          // EN_SITIO
+  inProgress,      // EN_EJECUCION
+  forConfirmation, // POR_CONFIRMAR
+  completed,       // COMPLETADA
+  inDispute,       // EN_DISPUTA
+  cancelled,       // CANCELADA
+  refunded,        // REEMBOLSADA
 }
 
 enum EscrowStatus {
@@ -15,6 +21,7 @@ enum EscrowStatus {
   beforePhotoUploaded,
   afterPhotoUploaded,
   released,
+  refunded,
 }
 
 extension EscrowStatusExtension on EscrowStatus {
@@ -30,6 +37,8 @@ extension EscrowStatusExtension on EscrowStatus {
         return 'Evidencia Final Lista para Aprobación';
       case EscrowStatus.released:
         return 'Pago Liberado al Especialista';
+      case EscrowStatus.refunded:
+        return 'Garantía Reembolsada';
     }
   }
 }
@@ -41,16 +50,31 @@ extension JobStatusExtension on JobStatus {
         return 'Buscando Técnicos';
       case JobStatus.negotiating:
         return 'Negociando Ofertas';
+      case JobStatus.accepted:
+        return 'Oferta Aceptada (Pendiente Depósito)';
       case JobStatus.onTheWay:
         return 'Especialista en Camino';
+      case JobStatus.onSite:
+        return 'Especialista en Sitio';
       case JobStatus.inProgress:
-        return 'Servicio en Progreso';
+        return 'Servicio en Ejecución';
+      case JobStatus.forConfirmation:
+        return 'Por Confirmar';
       case JobStatus.completed:
         return 'Completado';
+      case JobStatus.inDispute:
+        return 'En Disputa';
       case JobStatus.cancelled:
         return 'Cancelado';
+      case JobStatus.refunded:
+        return 'Reembolsado';
     }
   }
+
+  bool get isTerminal =>
+      this == JobStatus.completed ||
+      this == JobStatus.cancelled ||
+      this == JobStatus.refunded;
 }
 
 class JobRequest {
@@ -193,6 +217,61 @@ class JobRequest {
       escrowStatus: escrowStatus ?? this.escrowStatus,
       beforePhotoTag: beforePhotoTag ?? this.beforePhotoTag,
       afterPhotoTag: afterPhotoTag ?? this.afterPhotoTag,
+    );
+  }
+
+  factory JobRequest.fromJson(Map<String, dynamic> json) {
+    return JobRequest(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      categoryId: json['categoryId'] as String? ?? 'cat-general',
+      categoryName: json['categoryName'] as String? ?? json['category'] as String? ?? 'General',
+      description: json['description'] as String? ?? '',
+      budget: (json['budget'] as num?)?.toDouble() ?? 0.0,
+      district: json['district'] as String? ?? 'Chiclayo',
+      address: json['address'] as String? ?? 'Chiclayo, Perú',
+      latitude: (json['latitude'] as num?)?.toDouble() ?? -6.7760,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? -79.8436,
+      reference: json['reference'] as String? ?? '',
+      distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 1.5,
+      urgency: json['urgency'] as String? ?? 'Media',
+      status: json['status'] != null
+          ? JobStateMachine.fromBackendName(json['status'].toString())
+          : JobStatus.searching,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      clientId: json['clientId'] as String? ?? '',
+      clientName: json['clientName'] as String? ??
+          (json['client'] is Map ? json['client']['fullName']?.toString() ?? 'Cliente' : 'Cliente'),
+      confirmationCode: json['confirmationCode'] as String? ?? 'CH-1234',
+      bids: json['bids'] is List
+          ? (json['bids'] as List)
+              .map((b) => Bid.fromJson(b as Map<String, dynamic>))
+              .toList()
+          : const [],
+      acceptedBidId: json['acceptedBidId'] as String?,
+      workerId: json['workerId'] as String?,
+      workerName: json['workerName'] as String?,
+      paymentMethod: json['paymentMethod'] as String?,
+      rating: json['rating'] as int?,
+      reviewComment: json['reviewComment'] as String?,
+      isPaid: json['isPaid'] as bool? ?? false,
+      isSos: json['isSos'] as bool? ?? false,
+      sosExpiresAt: json['sosExpiresAt'] != null
+          ? DateTime.tryParse(json['sosExpiresAt'].toString())
+          : null,
+      urgencyMultiplier: (json['urgencyMultiplier'] as num?)?.toDouble() ?? 1.0,
+      securityPin: json['securityPin'] as String? ?? '4829',
+      isPinVerified: json['isPinVerified'] as bool? ?? false,
+      escrowStatus: json['escrowStatus'] != null
+          ? EscrowStatus.values.firstWhere(
+              (e) => e.name.toLowerCase() == json['escrowStatus'].toString().toLowerCase(),
+              orElse: () => EscrowStatus.pendingDeposit,
+            )
+          : EscrowStatus.pendingDeposit,
+      beforePhotoTag: json['beforePhotoTag'] as String? ?? json['beforePhotoUrl'] as String?,
+      afterPhotoTag: json['afterPhotoTag'] as String? ?? json['afterPhotoUrl'] as String?,
     );
   }
 }

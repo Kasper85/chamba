@@ -38,7 +38,10 @@ class _ClientMyRequestsScreenState extends State<ClientMyRequestsScreen> {
       if (_selectedFilter == 'Buscando') return j.status == JobStatus.searching;
       if (_selectedFilter == 'Negociando') return j.status == JobStatus.negotiating;
       if (_selectedFilter == 'En Curso') {
-        return j.status == JobStatus.onTheWay || j.status == JobStatus.inProgress;
+        return j.status == JobStatus.onTheWay ||
+            j.status == JobStatus.onSite ||
+            j.status == JobStatus.inProgress ||
+            j.status == JobStatus.forConfirmation;
       }
       if (_selectedFilter == 'Finalizadas') return j.status == JobStatus.completed;
       return true;
@@ -181,8 +184,10 @@ class _ClientMyRequestsScreenState extends State<ClientMyRequestsScreen> {
 
   Widget _buildJobCard(JobRequest job) {
     final hasOffers = job.bids.isNotEmpty;
-    final isOnTheWayOrActive =
-        job.status == JobStatus.onTheWay || job.status == JobStatus.inProgress;
+    final isOnTheWayOrActive = job.status == JobStatus.onTheWay ||
+        job.status == JobStatus.onSite ||
+        job.status == JobStatus.inProgress ||
+        job.status == JobStatus.forConfirmation;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14.0),
@@ -307,12 +312,33 @@ class _ClientMyRequestsScreenState extends State<ClientMyRequestsScreen> {
         return ChambaBadge.counterReceived(
           label: '${job.bids.length} ${job.bids.length == 1 ? 'Oferta' : 'Ofertas'}',
         );
+      case JobStatus.accepted:
+        return const ChambaBadge.negotiating(label: 'Aceptada (Pagar)');
       case JobStatus.onTheWay:
         return const ChambaBadge.confirmed(label: 'En camino');
+      case JobStatus.onSite:
+        return const ChambaBadge.confirmed(label: 'En sitio');
       case JobStatus.inProgress:
-        return const ChambaBadge.confirmed(label: 'En progreso');
+        return const ChambaBadge.confirmed(label: 'En ejecución');
+      case JobStatus.forConfirmation:
+        return const ChambaBadge.counterReceived(label: 'Por confirmar');
       case JobStatus.completed:
         return const ChambaBadge.confirmed(label: 'Completado');
+      case JobStatus.inDispute:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.orange.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            'En disputa',
+            style: AppTypography.labelSm.copyWith(
+              color: Colors.deepOrange,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        );
       case JobStatus.cancelled:
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -324,6 +350,21 @@ class _ClientMyRequestsScreenState extends State<ClientMyRequestsScreen> {
             'Cancelado',
             style: AppTypography.labelSm.copyWith(
               color: Colors.red,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        );
+      case JobStatus.refunded:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            'Reembolsado',
+            style: AppTypography.labelSm.copyWith(
+              color: Colors.blueGrey,
               fontWeight: FontWeight.w700,
             ),
           ),

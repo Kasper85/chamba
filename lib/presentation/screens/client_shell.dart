@@ -6,7 +6,6 @@ import 'client_home_screen.dart';
 import 'client_my_requests_screen.dart';
 import 'messages_inbox_screen.dart';
 import 'user_profile_screen.dart';
-import 'worker_shell.dart';
 
 class ClientShell extends StatefulWidget {
   final AppState appState;
@@ -29,30 +28,6 @@ class _ClientShellState extends State<ClientShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    widget.appState.addListener(_onStateChange);
-  }
-
-  void _onStateChange() {
-    if (mounted) {
-      if (widget.appState.isWorker) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 350),
-            pageBuilder: (context, animation, secondaryAnimation) => WorkerShell(appState: widget.appState),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-                FadeTransition(opacity: animation, child: child),
-          ),
-        );
-      } else {
-        setState(() {});
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.appState.removeListener(_onStateChange);
-    super.dispose();
   }
 
   @override

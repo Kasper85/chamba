@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../state/app_state.dart';
@@ -6,17 +7,12 @@ import 'available_jobs_screen.dart';
 import 'worker_my_jobs_screen.dart';
 import 'messages_inbox_screen.dart';
 import 'worker_profile_screen.dart';
-import 'client_shell.dart';
 
 class WorkerShell extends StatefulWidget {
   final AppState appState;
   final int initialIndex;
 
-  const WorkerShell({
-    super.key,
-    required this.appState,
-    this.initialIndex = 0,
-  });
+  const WorkerShell({super.key, required this.appState, this.initialIndex = 0});
 
   @override
   State<WorkerShell> createState() => _WorkerShellState();
@@ -29,7 +25,6 @@ class _WorkerShellState extends State<WorkerShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    widget.appState.addListener(_onStateChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         widget.appState.syncWorkerLocation();
@@ -37,43 +32,24 @@ class _WorkerShellState extends State<WorkerShell> {
     });
   }
 
-  void _onStateChange() {
-    if (mounted) {
-      if (widget.appState.isClient) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 350),
-            pageBuilder: (context, animation, secondaryAnimation) => ClientShell(appState: widget.appState),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-                FadeTransition(opacity: animation, child: child),
-          ),
-        );
-      } else {
-        setState(() {});
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.appState.removeListener(_onStateChange);
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final screens = [
-      AvailableJobsScreen(appState: widget.appState),
+      AvailableJobsScreen(
+        appState: widget.appState,
+        onProfileTap: () {
+          setState(() {
+            _currentIndex = 3;
+          });
+        },
+      ),
       WorkerMyJobsScreen(appState: widget.appState),
       MessagesInboxScreen(appState: widget.appState),
       WorkerProfileScreen(appState: widget.appState),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           boxShadow: [
@@ -129,4 +105,3 @@ class _WorkerShellState extends State<WorkerShell> {
     );
   }
 }
-

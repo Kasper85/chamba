@@ -11,6 +11,7 @@ import '../../data/models/category.dart';
 import '../state/app_state.dart';
 import '../widgets/chamba_interactive_map.dart';
 import 'received_bids_screen.dart';
+import 'job_confirmation_screen.dart';
 
 class PostJobScreen extends StatefulWidget {
   final AppState appState;
@@ -49,6 +50,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
   String? _aiScenarioApplied;
   String? _aiPriceRange;
   bool _isPublishing = false;
+  bool _hasConfirmedPriceDeviation = false;
 
   final List<String> _urgencyOptions = [
     'Emergencia SOS (<30 min)',
@@ -527,6 +529,56 @@ class _PostJobScreenState extends State<PostJobScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validación de precio mínimo duro: S/ 20.00 (ALCANCE.md §3, §8 L10)
+    if (_proposedBudget < 20.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ El presupuesto mínimo para publicar en CHAMBA es de S/ 20.00 (ALCANCE.md §3).'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Alerta suave de IA si el precio es < 50% o > 300% del estimado (ALCANCE.md §3, §8 L10)
+    final isDeviated = _proposedBudget < (_aiRecommendedPrice * 0.5) ||
+        _proposedBudget > (_aiRecommendedPrice * 3.0);
+
+    if (isDeviated && !_hasConfirmedPriceDeviation) {
+      final isTooLow = _proposedBudget < (_aiRecommendedPrice * 0.5);
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: Color(0xFFD97706)),
+              SizedBox(width: 8),
+              Text('¿Seguro del precio?'),
+            ],
+          ),
+          content: Text(
+            isTooLow
+                ? 'El precio ingresado (S/ ${_proposedBudget.toStringAsFixed(0)}) es menor al 50% del precio promedio estimado en Chiclayo (S/ ${_aiRecommendedPrice.toStringAsFixed(0)}). Podrías recibir menos ofertas de especialistas.'
+                : 'El precio ingresado (S/ ${_proposedBudget.toStringAsFixed(0)}) supera el 300% del estimado promedio en Chiclayo (S/ ${_aiRecommendedPrice.toStringAsFixed(0)}).',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Revisar precio'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Sí, continuar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+      _hasConfirmedPriceDeviation = true;
+    }
+
     setState(() => _isPublishing = true);
     await Future.delayed(const Duration(milliseconds: 600));
 
@@ -563,6 +615,72 @@ class _PostJobScreenState extends State<PostJobScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pendingJob = widget.appState.jobPendingConfirmation;
+    if (widget.appState.hasJobPendingConfirmation && pendingJob != null) {
+      return Scaffold(
+        backgroundColor: AppColors.canvas,
+        appBar: AppBar(
+          title: const Text('Publicar Solicitud'),
+          backgroundColor: AppColors.canvas,
+          foregroundColor: AppColors.primary,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFEF3C7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.warning_amber_rounded, size: 54, color: Color(0xFFB45309)),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Servicio pendiente de confirmación',
+                  style: AppTypography.headlineSm.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.neutral,
+                    fontSize: 20,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Tienes una labor pendiente de confirmación (${pendingJob.title}). '
+                  'Debes revisar la evidencia fotográfica del técnico y liberar el pago o reportar un problema antes de publicar una nueva solicitud.',
+                  style: AppTypography.bodyMd.copyWith(color: AppColors.muted, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+                ChambaButton(
+                  label: 'Revisar y Confirmar Servicio',
+                  leadingIcon: Icons.check_circle_outline,
+                  onPressed: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => JobConfirmationScreen(
+                          appState: widget.appState,
+                          job: pendingJob,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _isSos ? const Color(0xFFFFF7F5) : AppColors.canvas,
       appBar: AppBar(
@@ -1037,7 +1155,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 PriceDialStepper(
                   currentPrice: _proposedBudget,
                   recommendedPrice: _aiRecommendedPrice,
-                  minPrice: 15.0,
+                  minPrice: 20.0,
                   maxPrice: 2000.0,
                   label: _isSos ? 'Presupuesto con Tarifa de Emergencia' : 'Tu Presupuesto Inicial Ofrecido',
                   isSosSurge: _isSos,

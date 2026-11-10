@@ -88,4 +88,86 @@ class Bid {
       inclusionTags: inclusionTags ?? this.inclusionTags,
     );
   }
+
+  factory Bid.fromJson(Map<String, dynamic> json) {
+    final worker = json['worker'] as Map<String, dynamic>?;
+    final workerUser = worker?['user'] as Map<String, dynamic>?;
+    final workerName = json['workerName']?.toString() ??
+        workerUser?['fullName']?.toString() ??
+        'Técnico Especialista';
+    final workerAvatar = workerName.isNotEmpty ? workerName[0].toUpperCase() : 'T';
+
+    final statusStr = json['status']?.toString().toUpperCase() ?? 'PENDIENTE';
+    BidStatus bidStatus;
+    switch (statusStr) {
+      case 'CONTRAOFERTADA':
+      case 'COUNTERED':
+        bidStatus = BidStatus.countered;
+        break;
+      case 'ACEPTADA':
+      case 'ACCEPTED':
+        bidStatus = BidStatus.accepted;
+        break;
+      case 'RECHAZADA':
+      case 'REJECTED':
+        bidStatus = BidStatus.rejected;
+        break;
+      default:
+        bidStatus = BidStatus.pending;
+    }
+
+    final amountNum = json['amount'];
+    final amount = amountNum is num
+        ? amountNum.toDouble()
+        : double.tryParse(amountNum?.toString() ?? '0') ?? 0.0;
+    final counterNum = json['counterAmount'];
+    final counterAmount = counterNum is num
+        ? counterNum.toDouble()
+        : (counterNum != null ? double.tryParse(counterNum.toString()) : null);
+    final eta = json['estimatedEtaMinutes'] is num
+        ? (json['estimatedEtaMinutes'] as num).toInt()
+        : (int.tryParse(json['etaMinutes']?.toString() ?? '') ?? 20);
+
+    return Bid(
+      id: json['id']?.toString() ?? '',
+      jobId: json['jobRequestId']?.toString() ?? json['jobId']?.toString() ?? '',
+      workerId: json['workerId']?.toString() ?? '',
+      workerName: workerName,
+      workerAvatar: workerAvatar,
+      workerRating: (worker?['rating'] as num?)?.toDouble() ??
+          (json['workerRating'] as num?)?.toDouble() ??
+          5.0,
+      workerCompletedJobs: (worker?['completedJobs'] as num?)?.toInt() ??
+          (json['workerCompletedJobs'] as num?)?.toInt() ??
+          0,
+      isWorkerVerified: true,
+      amount: amount,
+      counterAmount: counterAmount,
+      status: bidStatus,
+      etaMinutes: eta,
+      message: json['message']?.toString() ?? '',
+      createdAt: json['createdAt'] != null
+          ? (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      hasVoiceNote: json['voiceNoteUrl'] != null || json['hasVoiceNote'] == true,
+      voiceTranscriptPreview: json['voiceTranscriptPreview']?.toString(),
+      includesMaterials: json['includesMaterials'] == true,
+      estimatedArrival: json['estimatedArrival']?.toString() ?? '$eta min',
+      inclusionTags: (json['inclusionTags'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'jobRequestId': jobId,
+      'workerId': workerId,
+      'amount': amount,
+      'counterAmount': counterAmount,
+      'status': status.name,
+      'message': message,
+      'estimatedEtaMinutes': etaMinutes,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
 }

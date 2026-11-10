@@ -20,7 +20,7 @@ class PriceDialStepper extends StatelessWidget {
     required this.currentPrice,
     required this.onPriceChanged,
     this.step = 5.0,
-    this.minPrice = 10.0,
+    this.minPrice = 20.0,
     this.maxPrice = 2000.0,
     this.label = 'Tu Oferta Propuesta',
     this.quickIncrements = const [-5.0, 5.0, 10.0, 20.0],
@@ -333,6 +333,31 @@ class PriceDialStepper extends StatelessWidget {
               },
             ),
           ),
+          if (ratio < 0.5 || ratio > 3.0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFF59E0B)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Color(0xFFB45309), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      ratio < 0.5
+                          ? 'Alerta de IA: El precio es menor al 50% del estimado (S/ ${recommendedPrice.toStringAsFixed(0)}). Podrías recibir menos ofertas.'
+                          : 'Alerta de IA: El precio supera el 300% del estimado (S/ ${recommendedPrice.toStringAsFixed(0)}).',
+                      style: const TextStyle(fontSize: 11.5, color: Color(0xFFB45309), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
