@@ -1,15 +1,10 @@
-import { IsBoolean, IsOptional, IsString, Matches, IsNumber, IsInt, Min, Max, IsArray, ArrayMaxSize, MaxLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpsertWorkerProfileDto {
-  @IsOptional() @IsString() @Matches(/^(\d{8})?$/) dni?: string;
-  @IsOptional() @IsNumber() @Min(0) @Max(100000) baseRate?: number;
-  @IsOptional() @IsInt() @Min(0) @Max(500) serviceRadiusKm?: number;
-  @IsOptional() @IsInt() @Min(0) @Max(80) experienceYears?: number;
-  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(100, { each: true }) skills?: string[];
   @ApiProperty({ example: 'Electricista matriculado y técnico en mantenimiento del hogar con 8 años de experiencia.', description: 'Descripción o bio profesional' })
   @IsString()
-  @MaxLength(2000)
+  @IsNotEmpty({ message: 'La descripción profesional es obligatoria' })
   bio: string;
 
   @ApiPropertyOptional({ example: 'Santa Victoria, Chiclayo', description: 'Distrito principal de cobertura' })
@@ -19,7 +14,7 @@ export class UpsertWorkerProfileDto {
 
   @ApiProperty({ example: 'Electricidad', description: 'Especialidad u oficio principal' })
   @IsString()
-  @MaxLength(100)
+  @IsNotEmpty({ message: 'La especialidad inicial es obligatoria' })
   specialty: string;
 
   @ApiPropertyOptional({ example: true, description: 'Disponibilidad para recibir solicitudes' })

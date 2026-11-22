@@ -1026,7 +1026,7 @@ export class JobsService {
     });
 
     const tip = ratings.reduce((sum, r) => sum + Number(r.tipAmount ?? 0), 0);
-    const agreedPrice = Number(job.agreedPrice ?? job.budget);
+    const agreedPrice = Number(job.budget);
     const commission = Number((agreedPrice * 0.08).toFixed(2));
     const serviceFee = 2.0;
     const totalPaidByClient = Number((agreedPrice + serviceFee + tip).toFixed(2));

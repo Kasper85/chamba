@@ -3,7 +3,6 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
-import { GoogleLoginDto } from './dto/google-login.dto.js';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -25,20 +24,5 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Credenciales inválidas o cuenta inactiva' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
-  }
-
-  @Post('google/login')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Iniciar sesión con una cuenta de Google validada' })
-  @ApiResponse({ status: 200, description: 'Sesión de Google iniciada correctamente' })
-  @ApiResponse({ status: 401, description: 'ID token de Google inválido' })
-  async loginWithGoogle(@Body() googleLoginDto: GoogleLoginDto) {
-    return this.authService.loginWithGoogle(googleLoginDto.idToken);
-  }
-
-  @Post('google/register')
-  @HttpCode(HttpStatus.OK)
-  async prepareGoogleRegistration(@Body() googleLoginDto: GoogleLoginDto) {
-    return this.authService.prepareGoogleRegistration(googleLoginDto.idToken);
   }
 }

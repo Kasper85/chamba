@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_colors.dart';
 import '../../data/models/job_request.dart';
 import '../../data/models/job_state_machine.dart';
@@ -21,12 +20,13 @@ import '../../data/services/events_socket_service.dart';
 import '../../data/services/disputes_api_service.dart';
 import '../../data/models/wallet_summary.dart';
 import '../../data/models/ai_diagnostic_result.dart';
-
 import 'package:geolocator/geolocator.dart';
-
 import 'dart:typed_data';
 
-enum UserRole { client, worker }
+enum UserRole {
+  client,
+  worker,
+}
 
 class AppState extends ChangeNotifier {
   final SessionStorage _sessionStorage;
@@ -43,9 +43,7 @@ class AppState extends ChangeNotifier {
   UserRole _currentRole = UserRole.client;
   final List<JobRequest> _jobs = List.from(MockData.initialJobs);
   final List<WorkerProfile> _workers = List.from(MockData.mockWorkers);
-  final List<ChatMessage> _chatMessages = List.from(
-    MockData.initialChatMessages,
-  );
+  final List<ChatMessage> _chatMessages = List.from(MockData.initialChatMessages);
   final List<AppNotification> _notifications = [];
 
   String? _activeJobId;
@@ -81,8 +79,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get clientPhone =>
-      _currentUser == null ? _mockClientPhone : (_currentUser!.phone ?? '');
+  String get clientPhone => _currentUser?.phone ?? _mockClientPhone;
   set clientPhone(String val) {
     if (_currentUser != null) {
       _currentUser = _currentUser!.copyWith(phone: val);
@@ -102,9 +99,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get clientDistrict => _currentUser == null
-      ? _mockClientDistrict
-      : (_currentUser!.district ?? '');
+  String get clientDistrict => _currentUser?.district ?? _mockClientDistrict;
   set clientDistrict(String val) {
     if (_currentUser != null) {
       _currentUser = _currentUser!.copyWith(district: val);
@@ -114,8 +109,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get clientAddress =>
-      _currentUser == null ? _mockClientAddress : (_currentUser!.address ?? '');
+  String get clientAddress => _currentUser?.address ?? _mockClientAddress;
   set clientAddress(String val) {
     if (_currentUser != null) {
       _currentUser = _currentUser!.copyWith(address: val);
@@ -131,7 +125,6 @@ class AppState extends ChangeNotifier {
     _currentUser = val;
     notifyListeners();
   }
-
   String? get authToken => _authToken;
   bool get isAuthenticated => _currentUser != null && _authToken != null;
   bool get isSupportUser => _currentUser?.isSupport ?? false;
@@ -147,7 +140,6 @@ class AppState extends ChangeNotifier {
     _walletSummary = value;
     notifyListeners();
   }
-
   bool get isLoadingWallet => _isLoadingWallet;
   String? get walletError => _walletError;
   FinanceApiService get financeApi => _financeApi;
@@ -214,7 +206,10 @@ class AppState extends ChangeNotifier {
 
     try {
       final role = isClient ? 'client' : 'worker';
-      final remoteJobs = await _jobsApi.getJobs(role: role, token: _authToken);
+      final remoteJobs = await _jobsApi.getJobs(
+        role: role,
+        token: _authToken,
+      );
       if (remoteJobs.isNotEmpty) {
         for (final rj in remoteJobs) {
           final idx = _jobs.indexWhere((j) => j.id == rj.id);
@@ -290,8 +285,9 @@ class AppState extends ChangeNotifier {
     JobsApiService? jobsApi,
     EventsSocketService? eventsSocket,
     DisputesApiService? disputesApi,
-  }) : _sessionStorage = sessionStorage ?? SessionStorage(),
-       _apiClient = apiClient ?? ApiClient() {
+  })  : _sessionStorage = sessionStorage ?? SessionStorage(),
+        _apiClient = apiClient ??
+            ApiClient() {
     _authApi = authApi ?? AuthApiService(apiClient: _apiClient);
     _locationApi = locationApi ?? LocationApiService(apiClient: _apiClient);
     _financeApi = financeApi ?? FinanceApiService(apiClient: _apiClient);
@@ -305,9 +301,7 @@ class AppState extends ChangeNotifier {
     _eventsSocket.onCounterOfferReceived.listen(_handleIncomingCounterOffer);
     _eventsSocket.onBidAccepted.listen(_handleIncomingBidAccepted);
     _eventsSocket.onNewJobAvailable.listen(_handleIncomingNewJob);
-    _eventsSocket.onConnectionChange.listen((_) {
-      if (!_disposed) notifyListeners();
-    });
+    _eventsSocket.onConnectionChange.listen((_) => notifyListeners());
 
     _activeJobId = _jobs.first.id;
 
@@ -421,9 +415,8 @@ class AppState extends ChangeNotifier {
         LocationPermission permission = await Geolocator.checkPermission()
             .timeout(const Duration(milliseconds: 600));
         if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission().timeout(
-            const Duration(milliseconds: 600),
-          );
+          permission = await Geolocator.requestPermission()
+              .timeout(const Duration(milliseconds: 600));
         }
         if (permission == LocationPermission.always ||
             permission == LocationPermission.whileInUse) {
@@ -454,14 +447,10 @@ class AppState extends ChangeNotifier {
   bool get isWorker => _currentRole == UserRole.worker;
 
   // Dynamic role-based design tokens
-  Color get roleAccentColor =>
-      isClient ? AppColors.secondary : AppColors.workerAccent;
-  Color get rolePrimaryColor =>
-      isClient ? AppColors.primary : AppColors.workerPrimary;
-  Color get roleSurfaceColor =>
-      isClient ? AppColors.surfaceContainer : AppColors.workerSurfaceContainer;
-  String get roleDisplayName =>
-      isClient ? 'Modo Cliente' : 'Modo Chamba (Técnico)';
+  Color get roleAccentColor => isClient ? AppColors.secondary : AppColors.workerAccent;
+  Color get rolePrimaryColor => isClient ? AppColors.primary : AppColors.workerPrimary;
+  Color get roleSurfaceColor => isClient ? AppColors.surfaceContainer : AppColors.workerSurfaceContainer;
+  String get roleDisplayName => isClient ? 'Modo Cliente' : 'Modo Chamba (Técnico)';
 
   List<JobRequest> get jobs => List.unmodifiable(_jobs);
   List<WorkerProfile> get workers => List.unmodifiable(_workers);
@@ -471,39 +460,31 @@ class AppState extends ChangeNotifier {
     if (user != null) {
       final wp = user.workerProfile;
       final workerId = wp?.id ?? 'worker-${user.id}';
-      final completedCount =
-          (wp?.completedJobs ?? 0) +
-          _jobs
-              .where(
-                (j) =>
-                    (j.workerId == workerId || j.workerId == user.id) &&
-                    j.status == JobStatus.completed,
-              )
-              .length;
+      final completedCount = (wp?.completedJobs ?? 0) +
+          _jobs.where((j) => (j.workerId == workerId || j.workerId == user.id) && j.status == JobStatus.completed).length;
 
       return WorkerProfile(
         id: workerId,
         name: user.fullName,
         avatarInitials: user.avatarInitials,
-        rating: wp?.rating ?? 0.0,
+        rating: wp?.rating ?? 5.0,
         completedJobs: completedCount,
-        isVerified: false,
-        isIdVerified: false,
-        hasCleanRecord: false,
-        offersWarranty: false,
-        skills: wp?.skills.isNotEmpty == true
-            ? wp!.skills
-            : (wp?.specialty?.isNotEmpty == true ? [wp!.specialty!] : const []),
-        bio: wp?.bio ?? '',
-        baseRate: wp?.baseRate ?? 0.0,
-        serviceRadiusKm: wp?.serviceRadiusKm ?? 0,
-        district: user.district ?? '',
-        phone: user.phone ?? '',
-        dni: wp?.dni ?? '',
-        experienceYears: wp?.experienceYears ?? 0,
-        portfolioCases:
-            wp?.portfolio.map(BeforeAfterCase.fromJson).toList() ?? const [],
-        reviews: const [],
+        isVerified: true,
+        isIdVerified: true,
+        hasCleanRecord: true,
+        offersWarranty: true,
+        skills: wp?.specialty != null && wp!.specialty!.isNotEmpty
+            ? [wp.specialty!, 'Mantenimiento del Hogar', 'Diagnóstico Técnico']
+            : ['Servicios Generales', 'Mantenimiento'],
+        bio: wp?.bio ?? 'Técnico especialista registrado en CHAMBA Perú.',
+        baseRate: 40.0,
+        serviceRadiusKm: 15,
+        district: user.district ?? 'Chiclayo',
+        phone: user.phone ?? '+51 974 000 000',
+        dni: '72384910',
+        experienceYears: 5,
+        portfolioCases: _workers.first.portfolioCases,
+        reviews: _workers.first.reviews,
         isAvailable: _isWorkerAvailable,
       );
     }
@@ -511,8 +492,7 @@ class AppState extends ChangeNotifier {
   }
 
   List<AppNotification> get notifications => List.unmodifiable(_notifications);
-  int get unreadNotificationsCount =>
-      _notifications.where((n) => !n.isRead).length;
+  int get unreadNotificationsCount => _notifications.where((n) => !n.isRead).length;
 
   JobRequest? get activeJob {
     if (_activeJobId == null) return null;
@@ -549,9 +529,7 @@ class AppState extends ChangeNotifier {
 
   List<JobRequest> get clientJobs {
     final currentId = _currentUser?.id ?? 'client-1';
-    return _jobs
-        .where((j) => j.clientId == currentId || j.clientId == 'client-1')
-        .toList();
+    return _jobs.where((j) => j.clientId == currentId || j.clientId == 'client-1').toList();
   }
 
   /// Métricas reales de cliente calculadas a partir de sus solicitudes (§7, §8 L9)
@@ -561,9 +539,7 @@ class AppState extends ChangeNotifier {
       clientJobs.where((j) => j.status == JobStatus.completed).length;
 
   double get clientAverageRating {
-    final ratedJobs = clientJobs
-        .where((j) => j.rating != null && j.rating! > 0)
-        .toList();
+    final ratedJobs = clientJobs.where((j) => j.rating != null && j.rating! > 0).toList();
     if (ratedJobs.isEmpty) return 5.0;
     final total = ratedJobs.map((j) => j.rating!).reduce((a, b) => a + b);
     return double.parse((total / ratedJobs.length).toStringAsFixed(1));
@@ -585,9 +561,7 @@ class AppState extends ChangeNotifier {
           token: _authToken,
         );
       } catch (e) {
-        debugPrint(
-          'Error actualizando disponibilidad del técnico en backend: $e',
-        );
+        debugPrint('Error actualizando disponibilidad del técnico en backend: $e');
       }
     }
 
@@ -600,28 +574,19 @@ class AppState extends ChangeNotifier {
       clientJobs.any((j) => j.status == JobStatus.forConfirmation);
 
   JobRequest? get jobPendingConfirmation {
-    final matches = clientJobs.where(
-      (j) => j.status == JobStatus.forConfirmation,
-    );
+    final matches = clientJobs.where((j) => j.status == JobStatus.forConfirmation);
     return matches.isNotEmpty ? matches.first : null;
   }
 
-  List<JobRequest> get availableWorkerJobs => _jobs
-      .where(
-        (j) =>
-            j.status == JobStatus.searching ||
-            j.status == JobStatus.negotiating,
-      )
-      .toList();
+  List<JobRequest> get availableWorkerJobs =>
+      _jobs.where((j) => j.status == JobStatus.searching || j.status == JobStatus.negotiating).toList();
 
   List<JobRequest> get workerActiveJobs {
     final workerId = currentWorkerProfile.id;
     return _jobs
-        .where(
-          (j) =>
-              j.workerId == workerId ||
-              j.bids.any((b) => b.workerId == workerId),
-        )
+        .where((j) =>
+            j.workerId == workerId ||
+            j.bids.any((b) => b.workerId == workerId))
         .toList();
   }
 
@@ -698,13 +663,7 @@ class AppState extends ChangeNotifier {
   // List of distinct jobs that have chat messages (conversations inbox)
   List<JobRequest> get conversationJobs {
     final jobIdsWithMessages = _chatMessages.map((m) => m.jobId).toSet();
-    return _jobs
-        .where(
-          (j) =>
-              jobIdsWithMessages.contains(j.id) ||
-              j.status != JobStatus.searching,
-        )
-        .toList();
+    return _jobs.where((j) => jobIdsWithMessages.contains(j.id) || j.status != JobStatus.searching).toList();
   }
 
   void switchRole(UserRole role) {
@@ -715,9 +674,7 @@ class AppState extends ChangeNotifier {
   }
 
   void toggleUserRole() {
-    _currentRole = _currentRole == UserRole.client
-        ? UserRole.worker
-        : UserRole.client;
+    _currentRole = _currentRole == UserRole.client ? UserRole.worker : UserRole.client;
     notifyListeners();
   }
 
@@ -765,9 +722,7 @@ class AppState extends ChangeNotifier {
       isPinVerified: false,
       isSos: isSos,
       urgencyMultiplier: urgencyMultiplier,
-      sosExpiresAt: isSos
-          ? DateTime.now().add(const Duration(minutes: 30))
-          : null,
+      sosExpiresAt: isSos ? DateTime.now().add(const Duration(minutes: 30)) : null,
       escrowStatus: EscrowStatus.heldInEscrow, // Auto-held for demo smoothness
       bids: [],
     );
@@ -779,9 +734,7 @@ class AppState extends ChangeNotifier {
       0,
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
-        title: isSos
-            ? '🚨 ¡Alerta SOS Activada (< 30 min)!'
-            : '¡Solicitud publicada con éxito!',
+        title: isSos ? '🚨 ¡Alerta SOS Activada (< 30 min)!' : '¡Solicitud publicada con éxito!',
         body: isSos
             ? 'Tu urgencia de "$title" fue enviada con máxima prioridad a especialistas en Chiclayo con llegada en < 30 min.'
             : 'Tu solicitud de "$title" está activa. Los especialistas cercanos están revisando tu presupuesto.',
@@ -902,8 +855,7 @@ class AppState extends ChangeNotifier {
     if (jobIndex == -1) return false;
 
     final job = _jobs[jobIndex];
-    if (job.securityPin.trim() == enteredPin.trim() ||
-        job.confirmationCode.trim() == enteredPin.trim()) {
+    if (job.securityPin.trim() == enteredPin.trim() || job.confirmationCode.trim() == enteredPin.trim()) {
       _jobs[jobIndex] = job.copyWith(
         isPinVerified: true,
         status: JobStatus.inProgress,
@@ -987,7 +939,10 @@ class AppState extends ChangeNotifier {
   }
 
   // Escrow Phase 1: Deposit funds into protected guarantee
-  void depositEscrow({required String jobId, required String paymentMethod}) {
+  void depositEscrow({
+    required String jobId,
+    required String paymentMethod,
+  }) {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
     if (jobIndex == -1) return;
 
@@ -1002,8 +957,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '🔒 Pago en Garantía Protegido',
-        body:
-            'S/. ${job.budget.toStringAsFixed(0)} depositados en custodia Chamba vía $paymentMethod. Los fondos solo se liberarán cuando apruebes el trabajo.',
+        body: 'S/. ${job.budget.toStringAsFixed(0)} depositados en custodia Chamba vía $paymentMethod. Los fondos solo se liberarán cuando apruebes el trabajo.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.shield_rounded,
@@ -1014,7 +968,10 @@ class AppState extends ChangeNotifier {
   }
 
   // Escrow Phase 3: Upload Before Evidence
-  void uploadBeforeEvidence({required String jobId, required String tag}) {
+  void uploadBeforeEvidence({
+    required String jobId,
+    required String tag,
+  }) {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
     if (jobIndex == -1) return;
 
@@ -1040,7 +997,10 @@ class AppState extends ChangeNotifier {
   }
 
   // Escrow Phase 4: Upload After Evidence
-  void uploadAfterEvidence({required String jobId, required String tag}) {
+  void uploadAfterEvidence({
+    required String jobId,
+    required String tag,
+  }) {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
     if (jobIndex == -1) return;
 
@@ -1082,8 +1042,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '🎉 ¡Pago Liberado al Especialista!',
-        body:
-            'Se transfirieron S/. ${job.budget.toStringAsFixed(0)} a ${job.workerName ?? "el especialista"}. ¡Tu garantía Chamba de 7 días está activa!',
+        body: 'Se transfirieron S/. ${job.budget.toStringAsFixed(0)} a ${job.workerName ?? "el especialista"}. ¡Tu garantía Chamba de 7 días está activa!',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.monetization_on_rounded,
@@ -1133,8 +1092,7 @@ class AppState extends ChangeNotifier {
     }
 
     // Cálculos de compensación y reembolso local / mock
-    final hasDeposit =
-        job.escrowStatus == EscrowStatus.heldInEscrow ||
+    final hasDeposit = job.escrowStatus == EscrowStatus.heldInEscrow ||
         job.escrowStatus == EscrowStatus.beforePhotoUploaded ||
         job.escrowStatus == EscrowStatus.afterPhotoUploaded;
 
@@ -1191,23 +1149,17 @@ class AppState extends ChangeNotifier {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobRequestId);
     if (jobIndex == -1) return;
 
-    final bidId =
-        data['id']?.toString() ??
-        'bid-${DateTime.now().millisecondsSinceEpoch}';
+    final bidId = data['id']?.toString() ?? 'bid-${DateTime.now().millisecondsSinceEpoch}';
     final workerId = data['workerId']?.toString() ?? 'worker-unknown';
     final workerName = data['workerName']?.toString() ?? 'Técnico Especialista';
     final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
     final message = data['message']?.toString() ?? '';
     final estimatedArrival = data['estimatedArrival']?.toString() ?? '20 min';
-    final etaMinutes =
-        int.tryParse(estimatedArrival.replaceAll(RegExp(r'[^0-9]'), '')) ?? 20;
+    final etaMinutes = int.tryParse(estimatedArrival.replaceAll(RegExp(r'[^0-9]'), '')) ?? 20;
     final includesMaterials = data['includesMaterials'] == true;
-    final inclusionTags =
-        (data['inclusionTags'] as List?)?.map((e) => e.toString()).toList() ??
-        [];
+    final inclusionTags = (data['inclusionTags'] as List?)?.map((e) => e.toString()).toList() ?? [];
     final hasVoiceNote = data['hasVoiceNote'] == true;
-    final voiceDurationSeconds =
-        (data['voiceDurationSeconds'] as num?)?.toInt() ?? 0;
+    final voiceDurationSeconds = (data['voiceDurationSeconds'] as num?)?.toInt() ?? 0;
     final voiceTranscriptPreview = data['voiceTranscriptPreview']?.toString();
 
     final incomingBid = Bid(
@@ -1215,9 +1167,7 @@ class AppState extends ChangeNotifier {
       jobId: jobRequestId,
       workerId: workerId,
       workerName: workerName,
-      workerAvatar: workerName.isNotEmpty
-          ? workerName.substring(0, 1).toUpperCase()
-          : 'T',
+      workerAvatar: workerName.isNotEmpty ? workerName.substring(0, 1).toUpperCase() : 'T',
       workerRating: 4.9,
       workerCompletedJobs: 42,
       isWorkerVerified: true,
@@ -1235,9 +1185,7 @@ class AppState extends ChangeNotifier {
     );
 
     final job = _jobs[jobIndex];
-    final existingIndex = job.bids.indexWhere(
-      (b) => b.id == bidId || (b.workerId == workerId && b.amount == amount),
-    );
+    final existingIndex = job.bids.indexWhere((b) => b.id == bidId || (b.workerId == workerId && b.amount == amount));
     List<Bid> updatedBids;
     if (existingIndex >= 0) {
       updatedBids = List<Bid>.from(job.bids)..[existingIndex] = incomingBid;
@@ -1247,9 +1195,7 @@ class AppState extends ChangeNotifier {
 
     _jobs[jobIndex] = job.copyWith(
       bids: updatedBids,
-      status: job.status == JobStatus.searching
-          ? JobStatus.negotiating
-          : job.status,
+      status: job.status == JobStatus.searching ? JobStatus.negotiating : job.status,
     );
 
     _notifications.insert(
@@ -1257,8 +1203,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '⚡ ¡Oferta en vivo de $workerName!',
-        body:
-            'Propuesta de S/. ${amount.toStringAsFixed(0)} recibida en tiempo real para "${job.title}".',
+        body: 'Propuesta de S/. ${amount.toStringAsFixed(0)} recibida en tiempo real para "${job.title}".',
         timestamp: DateTime.now(),
         relatedJobId: jobRequestId,
         icon: Icons.bolt_rounded,
@@ -1280,14 +1225,10 @@ class AppState extends ChangeNotifier {
 
     final job = _jobs[jobIndex];
     if (job.bids.isNotEmpty) {
-      final updatedBids = job.bids
-          .map(
-            (b) => b.copyWith(
-              counterAmount: counterAmount,
-              status: BidStatus.countered,
-            ),
-          )
-          .toList();
+      final updatedBids = job.bids.map((b) => b.copyWith(
+        counterAmount: counterAmount,
+        status: BidStatus.countered,
+      )).toList();
       _jobs[jobIndex] = job.copyWith(bids: updatedBids);
     }
 
@@ -1296,8 +1237,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '🔄 Contraoferta recibida',
-        body:
-            '$senderName propuso S/. ${counterAmount.toStringAsFixed(0)} en vivo.',
+        body: '$senderName propuso S/. ${counterAmount.toStringAsFixed(0)} en vivo.',
         timestamp: DateTime.now(),
         relatedJobId: jobRequestId,
         icon: Icons.sync_alt_rounded,
@@ -1336,8 +1276,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '🤝 ¡Trato Aceptado en Tiempo Real!',
-        body:
-            'El servicio fue confirmado por S/. ${(agreedAmount ?? job.budget).toStringAsFixed(0)}.',
+        body: 'El servicio fue confirmado por S/. ${(agreedAmount ?? job.budget).toStringAsFixed(0)}.',
         timestamp: DateTime.now(),
         relatedJobId: jobRequestId,
         icon: Icons.handshake_rounded,
@@ -1383,9 +1322,7 @@ class AppState extends ChangeNotifier {
       0,
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
-        title: isSos
-            ? '🚨 ¡Nueva Emergencia SOS Disponible!'
-            : '📢 ¡Nueva Chamba Publicada!',
+        title: isSos ? '🚨 ¡Nueva Emergencia SOS Disponible!' : '📢 ¡Nueva Chamba Publicada!',
         body: '$title (S/. ${budget.toStringAsFixed(0)}) en $district.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
@@ -1478,8 +1415,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '🎉 ¡Pago Liberado al Especialista!',
-        body:
-            'Se transfirieron S/. ${amount.toStringAsFixed(0)} a ${job.workerName ?? "el especialista"}. ¡Garantía Chamba activa!',
+        body: 'Se transfirieron S/. ${amount.toStringAsFixed(0)} a ${job.workerName ?? "el especialista"}. ¡Garantía Chamba activa!',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.monetization_on_rounded,
@@ -1531,8 +1467,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '↩️ Garantía Reembolsada',
-        body:
-            'Se reembolsaron los fondos en custodia de la solicitud #${job.title}.',
+        body: 'Se reembolsaron los fondos en custodia de la solicitud #${job.title}.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.replay_circle_filled_rounded,
@@ -1602,15 +1537,13 @@ class AppState extends ChangeNotifier {
     );
 
     if (_authToken != null) {
-      _jobsApi
-          .createBid(
-            jobId: jobId,
-            amount: amount,
-            message: message,
-            etaMinutes: etaMinutes,
-            token: _authToken,
-          )
-          .then((_) {}, onError: (_) {});
+      _jobsApi.createBid(
+        jobId: jobId,
+        amount: amount,
+        message: message,
+        etaMinutes: etaMinutes,
+        token: _authToken,
+      ).then((_) {}, onError: (_) {});
     }
 
     _notifications.insert(
@@ -1618,8 +1551,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '¡Oferta enviada!',
-        body:
-            'Enviaste tu propuesta de S/. ${amount.toStringAsFixed(0)} para "${job.title}".',
+        body: 'Enviaste tu propuesta de S/. ${amount.toStringAsFixed(0)} para "${job.title}".',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.send_rounded,
@@ -1664,8 +1596,7 @@ class AppState extends ChangeNotifier {
         senderId: _currentUser?.id ?? 'client-1',
         senderName: clientName,
         isFromWorker: false,
-        text:
-            'He enviado una contraoferta por S/. ${counterAmount.toStringAsFixed(0)}',
+        text: 'He enviado una contraoferta por S/. ${counterAmount.toStringAsFixed(0)}',
         proposalAmount: counterAmount,
         timestamp: DateTime.now(),
       ),
@@ -1676,8 +1607,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: 'Contraoferta enviada',
-        body:
-            'Propusiste S/. ${counterAmount.toStringAsFixed(0)} a ${job.bids[bidIndex].workerName}.',
+        body: 'Propusiste S/. ${counterAmount.toStringAsFixed(0)} a ${job.bids[bidIndex].workerName}.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.sync_alt_rounded,
@@ -1687,7 +1617,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void rejectBid({required String jobId, required String bidId}) {
+  void rejectBid({
+    required String jobId,
+    required String bidId,
+  }) {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
     if (jobIndex == -1) return;
 
@@ -1702,7 +1635,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void acceptBid({required String jobId, required String bidId}) {
+  void acceptBid({
+    required String jobId,
+    required String bidId,
+  }) {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
     if (jobIndex == -1) return;
 
@@ -1735,9 +1671,11 @@ class AppState extends ChangeNotifier {
     );
 
     if (_authToken != null) {
-      _jobsApi
-          .acceptBid(jobId: jobId, bidId: bidId, token: _authToken)
-          .then((_) {}, onError: (_) {});
+      _jobsApi.acceptBid(
+        jobId: jobId,
+        bidId: bidId,
+        token: _authToken,
+      ).then((_) {}, onError: (_) {});
     }
 
     // Send agreement message to chat
@@ -1748,8 +1686,7 @@ class AppState extends ChangeNotifier {
         senderId: _currentUser?.id ?? 'client-1',
         senderName: clientName,
         isFromWorker: false,
-        text:
-            '¡Trato cerrado por S/. ${agreedPrice.toStringAsFixed(0)}! Código de seguridad generado.',
+        text: '¡Trato cerrado por S/. ${agreedPrice.toStringAsFixed(0)}! Código de seguridad generado.',
         proposalAmount: agreedPrice,
         timestamp: DateTime.now(),
       ),
@@ -1760,8 +1697,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '¡Especialista contratado!',
-        body:
-            '${acceptedBid.workerName} aceptó el servicio por S/. ${agreedPrice.toStringAsFixed(0)} y va en camino.',
+        body: '${acceptedBid.workerName} aceptó el servicio por S/. ${agreedPrice.toStringAsFixed(0)} y va en camino.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.two_wheeler_rounded,
@@ -1813,7 +1749,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void registerPayment({required String jobId, required String paymentMethod}) {
+  void registerPayment({
+    required String jobId,
+    required String paymentMethod,
+  }) {
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
     if (jobIndex == -1) return;
 
@@ -1827,8 +1766,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: 'Pago registrado',
-        body:
-            'Pago de S/. ${_jobs[jobIndex].budget.toStringAsFixed(0)} registrado mediante $paymentMethod.',
+        body: 'Pago de S/. ${_jobs[jobIndex].budget.toStringAsFixed(0)} registrado mediante $paymentMethod.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.payments_outlined,
@@ -1874,8 +1812,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: 'Calificación registrada',
-        body:
-            'Has calificado con $stars estrellas${tipAmount > 0 ? " y propina de S/ ${tipAmount.toStringAsFixed(0)}" : ""}.',
+        body: 'Has calificado con $stars estrellas${tipAmount > 0 ? " y propina de S/ ${tipAmount.toStringAsFixed(0)}" : ""}.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.star_rounded,
@@ -1914,9 +1851,7 @@ class AppState extends ChangeNotifier {
   }) {
     final isFromWorker = _currentRole == UserRole.worker;
     final senderName = isFromWorker ? currentWorkerProfile.name : clientName;
-    final senderId = isFromWorker
-        ? currentWorkerProfile.id
-        : (_currentUser?.id ?? 'client-1');
+    final senderId = isFromWorker ? currentWorkerProfile.id : (_currentUser?.id ?? 'client-1');
 
     final message = ChatMessage(
       id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
@@ -1933,12 +1868,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void sendInChatCounterOffer({required String jobId, required double amount}) {
+  void sendInChatCounterOffer({
+    required String jobId,
+    required double amount,
+  }) {
     final isFromWorker = _currentRole == UserRole.worker;
     final senderName = isFromWorker ? currentWorkerProfile.name : clientName;
-    final senderId = isFromWorker
-        ? currentWorkerProfile.id
-        : (_currentUser?.id ?? 'client-1');
+    final senderId = isFromWorker ? currentWorkerProfile.id : (_currentUser?.id ?? 'client-1');
 
     final message = ChatMessage(
       id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
@@ -1961,8 +1897,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '💬 Nueva Contraoferta en Chat',
-        body:
-            '$senderName propuso cerrar el servicio por S/. ${amount.toStringAsFixed(0)}.',
+        body: '$senderName propuso cerrar el servicio por S/. ${amount.toStringAsFixed(0)}.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.handshake_rounded,
@@ -1980,8 +1915,7 @@ class AppState extends ChangeNotifier {
     if (msgIndex == -1) return;
 
     final originalMsg = _chatMessages[msgIndex];
-    final agreedAmount =
-        originalMsg.offerAmount ?? originalMsg.proposalAmount ?? 50.0;
+    final agreedAmount = originalMsg.offerAmount ?? originalMsg.proposalAmount ?? 50.0;
 
     _chatMessages[msgIndex] = originalMsg.copyWith(
       counterOfferStatus: CounterOfferStatus.accepted,
@@ -1990,7 +1924,9 @@ class AppState extends ChangeNotifier {
     // Update job budget
     final jobIndex = _jobs.indexWhere((j) => j.id == jobId);
     if (jobIndex != -1) {
-      _jobs[jobIndex] = _jobs[jobIndex].copyWith(budget: agreedAmount);
+      _jobs[jobIndex] = _jobs[jobIndex].copyWith(
+        budget: agreedAmount,
+      );
     }
 
     // Add confirmation system message to chat
@@ -2001,8 +1937,7 @@ class AppState extends ChangeNotifier {
         senderId: 'system',
         senderName: 'Chamba Oficial',
         isFromWorker: false,
-        text:
-            '🤝 ¡Trato Cerrado! Se ha fijado el precio final en S/. ${agreedAmount.toStringAsFixed(0)}.',
+        text: '🤝 ¡Trato Cerrado! Se ha fijado el precio final en S/. ${agreedAmount.toStringAsFixed(0)}.',
         proposalAmount: agreedAmount,
         timestamp: DateTime.now(),
       ),
@@ -2013,8 +1948,7 @@ class AppState extends ChangeNotifier {
       AppNotification(
         id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
         title: '🎉 ¡Contraoferta Aceptada!',
-        body:
-            'El precio del trabajo fue actualizado a S/. ${agreedAmount.toStringAsFixed(0)}.',
+        body: 'El precio del trabajo fue actualizado a S/. ${agreedAmount.toStringAsFixed(0)}.',
         timestamp: DateTime.now(),
         relatedJobId: jobId,
         icon: Icons.check_circle_rounded,
@@ -2042,9 +1976,7 @@ class AppState extends ChangeNotifier {
       ChatMessage(
         id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
         jobId: jobId,
-        senderId: isFromWorker
-            ? currentWorkerProfile.id
-            : (_currentUser?.id ?? 'client-1'),
+        senderId: isFromWorker ? currentWorkerProfile.id : (_currentUser?.id ?? 'client-1'),
         senderName: senderName,
         isFromWorker: isFromWorker,
         text: 'La propuesta de precio no fue aceptada. Puedes enviar otra oferta.',
@@ -2062,16 +1994,8 @@ class AppState extends ChangeNotifier {
         id: currentWp?.id ?? 'worker-${_currentUser!.id}',
         bio: profile.bio,
         district: profile.district,
-        specialty: profile.skills.isNotEmpty
-            ? profile.skills.first
-            : 'Servicios Generales',
-        isAvailable: profile.isAvailable,
-        dni: profile.dni,
-        baseRate: profile.baseRate,
-        serviceRadiusKm: profile.serviceRadiusKm,
-        experienceYears: profile.experienceYears,
-        skills: profile.skills,
-        portfolio: currentWp?.portfolio ?? const [],
+        specialty: profile.skills.isNotEmpty ? profile.skills.first : 'Servicios Generales',
+        isAvailable: profile.isVerified,
         rating: currentWp?.rating ?? profile.rating,
         completedJobs: currentWp?.completedJobs ?? profile.completedJobs,
       );
@@ -2090,15 +2014,6 @@ class AppState extends ChangeNotifier {
       _workers.add(profile);
     }
     notifyListeners();
-  }
-
-  bool _disposed = false;
-
-  @override
-  void dispose() {
-    _disposed = true;
-    _eventsSocket.dispose();
-    super.dispose();
   }
 
   void markAllNotificationsAsRead() {

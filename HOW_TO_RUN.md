@@ -60,7 +60,7 @@ cd chamba
 
 ## 3. Instalación y Configuración de PostgreSQL
 
-CHAMBA utiliza **PostgreSQL** para la persistencia del backend. Cada integrante debe usar su propia base local `chamba_db` y sus propias credenciales.
+CHAMBA utiliza **PostgreSQL** para la persistencia del backend. Recomendamos crear una base de datos exclusiva (`chamba_db`) y un usuario de aplicación dedicado (`chamba_app`) siguiendo las mejores prácticas de seguridad.
 
 ### 3.1 Abrir la consola interactiva `psql`
 Ejecuta en tu terminal PowerShell (o usa la aplicación *SQL Shell (psql)* incluida con PostgreSQL):
@@ -82,12 +82,18 @@ CREATE DATABASE chamba_db;
 -- 3. Habilitar la extensión geoespacial PostGIS
 CREATE EXTENSION IF NOT EXISTS postgis;
 
--- No crees un usuario adicional; usa tu usuario local de PostgreSQL.
+-- 4. Crear el usuario de aplicación dedicado (reemplaza 'MiPasswordSeguro123!' por tu contraseña local)
+CREATE ROLE chamba_app WITH LOGIN PASSWORD 'MiPasswordSeguro123!';
 
 -- 4. Otorgar permisos sobre la base de datos y el esquema público
--- No se requieren GRANT adicionales para el usuario local.
+GRANT CONNECT ON DATABASE chamba_db TO chamba_app;
+GRANT USAGE, CREATE ON SCHEMA public TO chamba_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO chamba_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO chamba_app;
 
 -- 5. Asegurar permisos automáticos para futuras tablas creadas por Prisma
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO chamba_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO chamba_app;
 
 -- 6. Salir de psql
 \q
@@ -103,7 +109,7 @@ Por estrictas normas de seguridad, los archivos `.env` que contienen contraseña
 Copia la plantilla `.env.example` en la carpeta `backend/`:
 ```powershell
 # En Windows (PowerShell):
-Copy-Item backend\.env.example backend\.env
+Copy-Item .env.example backend\.env
 ```
 
 ### 4.2 Configurar credenciales en `backend/.env`
@@ -113,20 +119,17 @@ Abre `backend/.env` con tu editor y ajusta los valores:
 PORT=3000
 NODE_ENV=development
 
-# Conexión PostgreSQL con el usuario local de cada integrante
-DATABASE_URL="postgresql://TU_USUARIO:TU_CONTRASEÑA@localhost:5432/chamba_db?schema=public"
+# Conexión PostgreSQL con el usuario dedicado chamba_app
+DATABASE_URL="postgresql://chamba_app:MiPasswordSeguro123!@localhost:5432/chamba_db?schema=public"
 
 # Clave secreta para firma criptográfica de tokens JWT
 # Genera una clave aleatoria ejecutando en PowerShell: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 JWT_SECRET="genera_tu_clave_aleatoria_aqui"
 JWT_EXPIRES_IN="7d"
-REDIS_URL="redis://localhost:6379"
 
 # URLs base de referencia
 # Web / Postman: http://localhost:3000
 # Emulador Android: http://10.0.2.2:3000
-# Celular por Wi-Fi: http://IP_LOCAL_DE_TU_PC:3000
-# Celular por USB con adb reverse: http://127.0.0.1:3000
 ```
 
 > ⚠️ **Importante:** Nunca compartas tu contraseña ni publiques tu archivo `.env` en repositorios públicos.
@@ -405,7 +408,7 @@ La aplicación ha sido auditada exhaustivamente para garantizar un diseño adapt
 
 ### 🔴 Error: `Authentication failed against database server` (Prisma P1000)
 - **Causa:** El usuario o la contraseña configurados en `backend/.env` no coinciden con los de tu PostgreSQL local.
-- **Solución:** Revisa tu línea `DATABASE_URL`. Prueba iniciar sesión en consola con `psql -U TU_USUARIO -h localhost -p 5432 -d chamba_db` para confirmar tus credenciales.
+- **Solución:** Revisa tu línea `DATABASE_URL`. Prueba iniciar sesión en consola con `psql -U chamba_app -h localhost -p 5432 -d chamba_db` para confirmar tus credenciales.
 
 ### 🔴 Error: `No se pudo conectar con el servidor backend CHAMBA` en Flutter
 - **Causa:** El backend NestJS no está iniciado o el emulador no puede alcanzar `10.0.2.2:3000`.
@@ -448,57 +451,3 @@ La aplicación ha sido auditada exhaustivamente para garantizar un diseño adapt
 - **Causa:** Se introdujo un widget con ancho o altura fija dentro de una fila o columna sin envoltura flexible.
 - **Solución:** Consulta la suite de pruebas `test/presentation/responsive_layout_test.dart` y utiliza `Expanded`, `Flexible`, `Wrap` o `LayoutBuilder`.
 
-## 13. Notas para cada integrante del equipo
-
-Cada integrante debe usar su propia base de datos PostgreSQL local y su propio
-archivo `backend/.env`. No compartan contraseÃ±as, JWT secrets ni archivos `.env`.
-No es necesario crear usuarios PostgreSQL adicionales.
-
-### 13.1 Redis
-
-En WSL Ubuntu, inicien Redis y verifiquen `PONG`:
-
-```bash
-sudo service redis-server start
-redis-cli ping
-```
-
-### 13.2 URL segÃºn el dispositivo
-
-La URL se incorpora al compilar; no reutilicen una APK que apunte a otra PC:
-
-```powershell
-# Emulador Android
-flutter run -d emulator-5554 --dart-define=API_BASE_URL=http://10.0.2.2:3000 --dart-define=USE_MOCKS=false
-
-# Celular por Wi-Fi (reemplaza la IP)
-flutter run -d <device_id> --dart-define=API_BASE_URL=http://IP_LOCAL_DE_TU_PC:3000 --dart-define=USE_MOCKS=false
-
-# Celular por USB
-adb reverse tcp:3000 tcp:3000
-flutter run -d <device_id> --dart-define=API_BASE_URL=http://127.0.0.1:3000 --dart-define=USE_MOCKS=false
-```
-
-Para una APK de celular por Wi-Fi:
-
-```powershell
-flutter build apk --debug --dart-define=API_BASE_URL=http://IP_LOCAL_DE_TU_PC:3000 --dart-define=USE_MOCKS=false
-```
-
-`10.0.2.2` solo funciona en el emulador. Por Wi-Fi, el celular y la PC deben
-estar en la misma red y el Firewall de Windows debe permitir el puerto `3000`.
-
-### 13.3 Google Login
-
-El paquete Android es `pe.chamba.chamba`. Cada integrante debe registrar el SHA-1
-de su keystore de depuraciÃ³n en Firebase (`android\\gradlew signingReport`), dentro
-de ConfiguraciÃ³n del proyecto -> Tus aplicaciones -> app Android -> Huellas SHA.
-El archivo `google-services.json` va en `android/app/`. Nunca suban keystores ni
-secretos.
-
-### 13.4 Tiempo de espera agotado
-
-Confirma que NestJS estÃ© ejecutÃ¡ndose, que PostgreSQL y las migraciones estÃ©n listas,
-que la APK use la URL correcta y que `http://IP_LOCAL_DE_TU_PC:3000/api/docs` abra
-desde el celular. Si no abre, usa `adb reverse` o permite el puerto `3000` en el
-Firewall de Windows.

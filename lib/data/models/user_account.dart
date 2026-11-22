@@ -6,12 +6,6 @@ class WorkerProfileData {
   final bool isAvailable;
   final double rating;
   final int completedJobs;
-  final String? dni;
-  final double? baseRate;
-  final int? serviceRadiusKm;
-  final int? experienceYears;
-  final List<String> skills;
-  final List<Map<String, dynamic>> portfolio;
 
   const WorkerProfileData({
     required this.id,
@@ -21,12 +15,6 @@ class WorkerProfileData {
     this.isAvailable = true,
     this.rating = 5.0,
     this.completedJobs = 0,
-    this.dni,
-    this.baseRate,
-    this.serviceRadiusKm,
-    this.experienceYears,
-    this.skills = const [],
-    this.portfolio = const [],
   });
 
   factory WorkerProfileData.fromJson(Map<String, dynamic> json) {
@@ -38,16 +26,6 @@ class WorkerProfileData {
       isAvailable: json['isAvailable'] as bool? ?? true,
       rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
       completedJobs: (json['completedJobs'] as num?)?.toInt() ?? 0,
-      dni: json['dni'] as String?,
-      baseRate: (json['baseRate'] as num?)?.toDouble(),
-      serviceRadiusKm: (json['serviceRadiusKm'] as num?)?.toInt(),
-      experienceYears: (json['experienceYears'] as num?)?.toInt(),
-      skills: (json['skills'] as List?)?.cast<String>() ?? const [],
-      portfolio:
-          (json['portfolio'] as List?)
-              ?.map((p) => Map<String, dynamic>.from(p as Map))
-              .toList() ??
-          const [],
     );
   }
 
@@ -60,12 +38,6 @@ class WorkerProfileData {
       'isAvailable': isAvailable,
       'rating': rating,
       'completedJobs': completedJobs,
-      'dni': dni,
-      'baseRate': baseRate,
-      'serviceRadiusKm': serviceRadiusKm,
-      'experienceYears': experienceYears,
-      'skills': skills,
-      'portfolio': portfolio,
     };
   }
 }
@@ -106,8 +78,7 @@ class UserAccount {
 
   bool get hasWorkerProfile => workerProfile != null;
 
-  bool get isSupport =>
-      role.toUpperCase() == 'SUPPORT' || role.toUpperCase() == 'ADMIN';
+  bool get isSupport => role.toUpperCase() == 'SUPPORT' || role.toUpperCase() == 'ADMIN';
 
   factory UserAccount.fromJson(Map<String, dynamic> json) {
     return UserAccount(
@@ -126,9 +97,7 @@ class UserAccount {
           ? DateTime.tryParse(json['updatedAt'] as String)
           : null,
       workerProfile: json['workerProfile'] != null
-          ? WorkerProfileData.fromJson(
-              json['workerProfile'] as Map<String, dynamic>,
-            )
+          ? WorkerProfileData.fromJson(json['workerProfile'] as Map<String, dynamic>)
           : null,
     );
   }
@@ -143,7 +112,7 @@ class UserAccount {
       'address': address,
       'status': status,
       'role': role,
-      'createdAt': createdAt?.toIso8601String(),
+      'createdAt':  createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'workerProfile': workerProfile?.toJson(),
     };

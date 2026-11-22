@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
@@ -15,10 +14,10 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  final _phoneController = TextEditingController();
-  final _dniController = TextEditingController();
+  final _phoneController = TextEditingController(text: '974 123 456');
+  final _dniController = TextEditingController(text: '47891234');
   bool _otpSent = false;
-  final _otpController = TextEditingController();
+  final _otpController = TextEditingController(text: '4829');
 
   @override
   void dispose() {
@@ -63,11 +62,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           color: AppColors.primary,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(
-                          Icons.handyman_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                        child: const Icon(Icons.handyman_rounded, color: Colors.white, size: 28),
                       ),
                     ),
                   ),
@@ -124,26 +119,14 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  '🇵🇪 +51',
-                                  style: AppTypography.bodyLgMedium,
-                                ),
+                                Text('🇵🇪 +51', style: AppTypography.bodyLgMedium),
                                 const SizedBox(width: 8),
-                                Container(
-                                  width: 1,
-                                  height: 20,
-                                  color: const Color(0x1F202D33),
-                                ),
+                                Container(width: 1, height: 20, color: const Color(0x1F202D33)),
                               ],
                             ),
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -160,17 +143,9 @@ class _AuthScreenState extends State<AuthScreen> {
                         keyboardType: TextInputType.number,
                         maxLength: 8,
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(
-                            Icons.badge_outlined,
-                            color: AppColors.muted,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          prefixIcon: const Icon(Icons.badge_outlined, color: AppColors.muted),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                           counterText: '',
                         ),
                       ),
@@ -193,9 +168,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         maxLength: 4,
                         decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                           counterText: '',
                         ),
                       ),
@@ -204,17 +177,13 @@ class _AuthScreenState extends State<AuthScreen> {
                         onPressed: () => setState(() => _otpSent = false),
                         child: Text(
                           'Cambiar número de teléfono',
-                          style: AppTypography.labelSm.copyWith(
-                            color: AppColors.secondary,
-                          ),
+                          style: AppTypography.labelSm.copyWith(color: AppColors.secondary),
                         ),
                       ),
                     ],
                     const SizedBox(height: 20),
                     ChambaButton(
-                      label: _otpSent
-                          ? 'Verificar y Entrar'
-                          : 'Continuar con SMS',
+                      label: _otpSent ? 'Verificar y Entrar' : 'Continuar con SMS',
                       onPressed: () {
                         if (!_otpSent) {
                           setState(() => _otpSent = true);

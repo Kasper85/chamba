@@ -4,17 +4,12 @@ import { WorkerProfileService } from './worker-profile.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { UpsertWorkerProfileDto } from './dto/upsert-worker-profile.dto.js';
-import { PortfolioDto } from './dto/portfolio.dto.js';
 
 @ApiTags('Worker Profile')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('worker-profile')
 export class WorkerProfileController {
-  @Post('me/portfolio')
-  addPortfolio(@CurrentUser() user: { id: string }, @Body() dto: PortfolioDto) {
-    return this.workerProfileService.addPortfolio(user.id, dto);
-  }
   constructor(private workerProfileService: WorkerProfileService) {}
 
   @Get('me')

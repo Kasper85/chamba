@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
@@ -7,19 +6,11 @@ import '../../core/widgets/chamba_card.dart';
 import '../../data/services/auth_api_service.dart';
 import '../state/app_state.dart';
 import 'role_selection_screen.dart';
-import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   final AppState appState;
-  final String? initialFullName;
-  final String? initialEmail;
 
-  const RegisterScreen({
-    super.key,
-    required this.appState,
-    this.initialFullName,
-    this.initialEmail,
-  });
+  const RegisterScreen({super.key, required this.appState});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -33,7 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _customDistrictController = TextEditingController();
-  String _selectedDistrict = '';
+  String _selectedDistrict = 'Lima - Miraflores';
 
   final _authApi = AuthApiService();
   bool _isLoading = false;
@@ -41,18 +32,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscureConfirm = true;
   String? _errorMessage;
 
-  @override
-  void initState() {
-    super.initState();
-    _fullNameController.text = widget.initialFullName ?? '';
-    _emailController.text = widget.initialEmail ?? '';
-  }
-
-  String get _effectiveDistrict =>
-      _selectedDistrict == 'Otra ciudad o distrito del Perú'
+  String get _effectiveDistrict => _selectedDistrict == 'Otra ciudad o distrito del Perú'
       ? (_customDistrictController.text.trim().isNotEmpty
-            ? _customDistrictController.text.trim()
-            : 'Perú')
+          ? _customDistrictController.text.trim()
+          : 'Perú')
       : _selectedDistrict;
 
   final List<String> _districts = [
@@ -133,9 +116,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '¡Cuenta creada exitosamente! Bienvenido, ${response.user.fullName}',
-          ),
+          content: Text('¡Cuenta creada exitosamente! Bienvenido, ${response.user.fullName}'),
           backgroundColor: AppColors.tertiary,
           behavior: SnackBarBehavior.floating,
         ),
@@ -143,25 +124,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => RoleSelectionScreen(
-            appState: widget.appState,
-            completeProfile: true,
-          ),
+          builder: (_) => RoleSelectionScreen(appState: widget.appState),
         ),
         (route) => false,
       );
     } on AuthApiException catch (e) {
       if (!mounted) return;
-      if (e.statusCode == 409) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => LoginScreen(appState: widget.appState),
-          ),
-        );
-        return;
-      }
       setState(() => _errorMessage = e.message);
     } catch (e) {
       if (!mounted) return;
@@ -170,45 +138,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
-    }
-  }
-
-  Future<void> _handleGoogleRegister() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final response = await _authApi.loginWithGoogle(register: true);
-      await widget.appState.setSession(response.user, response.accessToken);
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => RoleSelectionScreen(
-            appState: widget.appState,
-            completeProfile: true,
-          ),
-        ),
-      );
-    } on AuthApiException catch (e) {
-      if (!mounted) return;
-      if (e.statusCode == 409) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => LoginScreen(appState: widget.appState),
-          ),
-        );
-        return;
-      }
-      setState(() => _errorMessage = e.message);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _errorMessage = 'No se pudo conectar con Google.');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -254,17 +183,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.error.withValues(alpha: 0.3),
-                      ),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: AppColors.error,
-                          size: 20,
-                        ),
+                        const Icon(Icons.error_outline, color: AppColors.error, size: 20),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -299,17 +222,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         textCapitalization: TextCapitalization.words,
                         decoration: InputDecoration(
                           hintText: 'Ej. Carlos Ramírez',
-                          prefixIcon: const Icon(
-                            Icons.person_outline,
-                            color: AppColors.muted,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          prefixIcon: const Icon(Icons.person_outline, color: AppColors.muted),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -337,24 +252,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: 'correo@ejemplo.com',
-                          prefixIcon: const Icon(
-                            Icons.email_outlined,
-                            color: AppColors.muted,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          prefixIcon: const Icon(Icons.email_outlined, color: AppColors.muted),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'El correo electrónico es obligatorio';
                           }
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                              .hasMatch(value.trim())) {
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
                             return 'Formato de correo no válido';
                           }
                           return null;
@@ -376,17 +282,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
                           hintText: '+51 974 000 000',
-                          prefixIcon: const Icon(
-                            Icons.phone_outlined,
-                            color: AppColors.muted,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.muted),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -408,10 +306,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _selectedDistrict.isEmpty
-                                ? null
-                                : _selectedDistrict,
-                            hint: const Text('Selecciona tu ciudad o distrito'),
+                            value: _selectedDistrict,
                             isExpanded: true,
                             items: _districts.map((d) {
                               return DropdownMenuItem<String>(
@@ -420,35 +315,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               );
                             }).toList(),
                             onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedDistrict = val);
-                              }
+                              if (val != null) setState(() => _selectedDistrict = val);
                             },
                           ),
                         ),
                       ),
-                      if (_selectedDistrict ==
-                          'Otra ciudad o distrito del Perú') ...[
+                      if (_selectedDistrict == 'Otra ciudad o distrito del Perú') ...[
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _customDistrictController,
                           decoration: InputDecoration(
                             hintText: 'Ingresa tu ciudad y distrito (ej. Ayacucho - Huamanga)',
-                            prefixIcon: const Icon(
-                              Icons.edit_location_alt_outlined,
-                              color: AppColors.muted,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                              horizontal: 12,
-                            ),
+                            prefixIcon: const Icon(Icons.edit_location_alt_outlined, color: AppColors.muted),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                           ),
                           validator: (value) {
-                            if (_selectedDistrict ==
-                                    'Otra ciudad o distrito del Perú' &&
+                            if (_selectedDistrict == 'Otra ciudad o distrito del Perú' &&
                                 (value == null || value.trim().isEmpty)) {
                               return 'Por favor ingresa tu ciudad o distrito';
                             }
@@ -472,28 +355,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           hintText: '••••••••',
-                          prefixIcon: const Icon(
-                            Icons.lock_outline,
-                            color: AppColors.muted,
-                          ),
+                          prefixIcon: const Icon(Icons.lock_outline, color: AppColors.muted),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
+                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
                               color: AppColors.muted,
                             ),
-                            onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -521,28 +392,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscureText: _obscureConfirm,
                         decoration: InputDecoration(
                           hintText: '••••••••',
-                          prefixIcon: const Icon(
-                            Icons.lock_reset_outlined,
-                            color: AppColors.muted,
-                          ),
+                          prefixIcon: const Icon(Icons.lock_reset_outlined, color: AppColors.muted),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureConfirm
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
+                              _obscureConfirm ? Icons.visibility_off : Icons.visibility,
                               color: AppColors.muted,
                             ),
-                            onPressed: () => setState(
-                              () => _obscureConfirm = !_obscureConfirm,
-                            ),
+                            onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -557,9 +416,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 24),
 
                       ChambaButton(
-                        label: _isLoading
-                            ? 'Creando cuenta...'
-                            : 'Crear Cuenta',
+                        label: _isLoading ? 'Creando cuenta...' : 'Crear Cuenta',
                         isLoading: _isLoading,
                         onPressed: _isLoading ? null : _handleRegister,
                       ),
@@ -568,32 +425,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _handleGoogleRegister,
-                  icon: const Icon(Icons.account_circle_outlined),
-                  label: const Text('Continuar con Google'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    minimumSize: const Size.fromHeight(52),
-                    side: BorderSide(
-                      color: AppColors.primary.withValues(alpha: 0.35),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
                 Wrap(
                   alignment: WrapAlignment.center,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       '¿Ya tienes una cuenta?',
-                      style: AppTypography.bodyMd.copyWith(
-                        color: AppColors.muted,
-                      ),
+                      style: AppTypography.bodyMd.copyWith(color: AppColors.muted),
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),

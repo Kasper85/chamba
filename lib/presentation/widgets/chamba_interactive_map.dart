@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../data/models/worker_profile.dart';
 
 enum MapDisplayMode {
   selectLocation, // Client selecting exact address & pin
-  approximate, // Worker previewing nearby job with privacy circle
-  tracking, // Live service tracking showing worker moving toward client
+  approximate,    // Worker previewing nearby job with privacy circle
+  tracking,       // Live service tracking showing worker moving toward client
 }
 
 class ChambaInteractiveMap extends StatefulWidget {
@@ -29,10 +28,7 @@ class ChambaInteractiveMap extends StatefulWidget {
   const ChambaInteractiveMap({
     super.key,
     this.mode = MapDisplayMode.selectLocation,
-    this.initialCenter = const LatLng(
-      -6.7760,
-      -79.8436,
-    ), // Santa Victoria, Chiclayo
+    this.initialCenter = const LatLng(-6.7760, -79.8436), // Santa Victoria, Chiclayo
     this.initialZoom = 15.0,
     this.height = 240.0,
     this.isInteractive = true,
@@ -55,6 +51,15 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
   late AnimationController _radarController;
   bool _isLoadingGps = false;
 
+  // Well-known Chiclayo districts for fast selection
+  static const Map<String, LatLng> chiclayoDistricts = {
+    'Santa Victoria': LatLng(-6.7760, -79.8436),
+    'Chiclayo Centro': LatLng(-6.7714, -79.8409),
+    'La Victoria': LatLng(-6.7892, -79.8423),
+    'J.L. Ortiz': LatLng(-6.7589, -79.8375),
+    'Pimentel': LatLng(-6.8333, -79.9333),
+  };
+
   @override
   void initState() {
     super.initState();
@@ -69,7 +74,6 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
   @override
   void dispose() {
     _radarController.dispose();
-    _mapController.dispose();
     super.dispose();
   }
 
@@ -92,24 +96,12 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
         final detected = LatLng(position.latitude, position.longitude);
         _updatePin(detected, 'Ubicación actual GPS');
       } else {
-        if (mounted) {
-          final message = permission == LocationPermission.deniedForever
-              ? 'La ubicación está bloqueada. Actívala desde Ajustes para usar el GPS.'
-              : 'Permite la ubicación para ubicar tu domicilio con GPS.';
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(message)));
-        }
+        // Fallback gracefully
+        _updatePin(chiclayoDistricts['Santa Victoria']!, 'Santa Victoria, Chiclayo');
       }
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No se pudo obtener la ubicación. Puedes mover el marcador manualmente.',
-            ),
-          ),
-        );
-      }
+      // Offline or emulator without GPS fix
+      _updatePin(chiclayoDistricts['Santa Victoria']!, 'Santa Victoria, Chiclayo');
     } finally {
       if (mounted) setState(() => _isLoadingGps = false);
     }
@@ -148,12 +140,12 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
               initialZoom: widget.initialZoom,
               interactionOptions: InteractionOptions(
                 flags: widget.isInteractive
-                    ? InteractiveFlag.all
+                    ? (widget.mode == MapDisplayMode.tracking
+                        ? (InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom)
+                        : InteractiveFlag.all)
                     : InteractiveFlag.none,
               ),
-              onTap:
-                  widget.mode == MapDisplayMode.selectLocation &&
-                      widget.isInteractive
+              onTap: widget.mode == MapDisplayMode.selectLocation && widget.isInteractive
                   ? (tapPosition, point) {
                       _updatePin(point, 'Ubicación seleccionada');
                     }
@@ -182,8 +174,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                 ),
 
               // Tracking Polyline between worker and client
-              if (widget.mode == MapDisplayMode.tracking &&
-                  widget.workerPosition != null)
+              if (widget.mode == MapDisplayMode.tracking && widget.workerPosition != null)
                 PolylineLayer(
                   polylines: [
                     Polyline(
@@ -212,9 +203,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                                   children: [
                                     CustomPaint(
                                       size: const Size(84, 84),
-                                      painter: _MapRadarPainter(
-                                        _radarController.value,
-                                      ),
+                                      painter: _MapRadarPainter(_radarController.value),
                                     ),
                                     Container(
                                       width: 44,
@@ -222,10 +211,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                                       decoration: BoxDecoration(
                                         color: AppColors.sosRed,
                                         shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.white,
-                                          width: 2.5,
-                                        ),
+                                        border: Border.all(color: Colors.white, width: 2.5),
                                         boxShadow: const [
                                           BoxShadow(
                                             color: Color(0x66DC2626),
@@ -248,10 +234,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                               decoration: BoxDecoration(
                                 color: AppColors.secondary,
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2.5,
-                                ),
+                                border: Border.all(color: Colors.white, width: 2.5),
                                 boxShadow: const [
                                   BoxShadow(
                                     color: Color(0x40000000),
@@ -269,8 +252,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                     ),
 
                   // Worker Live Moving Marker
-                  if (widget.mode == MapDisplayMode.tracking &&
-                      widget.workerPosition != null)
+                  if (widget.mode == MapDisplayMode.tracking && widget.workerPosition != null)
                     Marker(
                       point: widget.workerPosition!,
                       width: 48,
@@ -335,10 +317,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                                   decoration: BoxDecoration(
                                     color: AppColors.primary,
                                     shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
+                                    border: Border.all(color: Colors.white, width: 2),
                                     boxShadow: const [
                                       BoxShadow(
                                         color: Color(0x33000000),
@@ -362,10 +341,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                                   Positioned(
                                     bottom: 0,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 1,
-                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                                       decoration: BoxDecoration(
                                         color: AppColors.secondary,
                                         borderRadius: BorderRadius.circular(4),
@@ -417,34 +393,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
             ),
 
           // GPS Button and District Quick-Pills for selectLocation mode
-          if (widget.isInteractive &&
-              widget.mode != MapDisplayMode.selectLocation)
-            Positioned(
-              right: 10,
-              bottom: 10,
-              child: Column(
-                children: [
-                  IconButton.filledTonal(
-                    tooltip: 'Acercar mapa',
-                    icon: const Icon(Icons.add),
-                    onPressed: () => _mapController.move(
-                      _mapController.camera.center,
-                      (_mapController.camera.zoom + 1).clamp(3, 19),
-                    ),
-                  ),
-                  IconButton.filledTonal(
-                    tooltip: 'Alejar mapa',
-                    icon: const Icon(Icons.remove),
-                    onPressed: () => _mapController.move(
-                      _mapController.camera.center,
-                      (_mapController.camera.zoom - 1).clamp(3, 19),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (widget.mode == MapDisplayMode.selectLocation &&
-              widget.isInteractive)
+          if (widget.mode == MapDisplayMode.selectLocation && widget.isInteractive)
             Positioned(
               right: 12,
               bottom: 12,
@@ -458,10 +407,7 @@ class _ChambaInteractiveMapState extends State<ChambaInteractiveMap>
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primary,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
                       )
                     : const Icon(Icons.my_location, size: 20),
               ),
@@ -501,6 +447,7 @@ class _MapRadarPainter extends CustomPainter {
     return oldDelegate.progress != progress;
   }
 }
+
 
 class PositionEdgeBanner extends StatelessWidget {
   final IconData icon;
