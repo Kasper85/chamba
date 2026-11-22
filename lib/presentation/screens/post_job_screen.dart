@@ -1,8 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+
+import '../../data/services/camera_image_service.dart';
+
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
@@ -35,9 +42,10 @@ class _PostJobScreenState extends State<PostJobScreen> {
   late JobCategory _selectedCategory;
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _addressController = TextEditingController(text: 'Calle Los Pinos 342, Dpto 201');
-  final _districtController = TextEditingController(text: 'Santa Victoria, Chiclayo');
-  final _referenceController = TextEditingController(text: 'Frente al parque principal, reja blanca');
+  final _addressController = TextEditingController();
+  final _districtController = TextEditingController();
+  final _referenceController = TextEditingController();
+  Timer? _geocodeDebounce;
 
   double _selectedLat = -6.7760;
   double _selectedLng = -79.8436;
@@ -63,14 +71,17 @@ class _PostJobScreenState extends State<PostJobScreen> {
   void initState() {
     super.initState();
     _isSos = widget.isSosInitial;
-    _selectedCategory = widget.initialCategory ?? JobCategory.defaultCategories.first;
+    _selectedCategory =
+        widget.initialCategory ?? JobCategory.defaultCategories.first;
     _selectedUrgency = _isSos ? 'Emergencia SOS (<30 min)' : 'Urgente (Hoy)';
     if (_isSos) {
       _proposedBudget = 70.0; // Dynamic surge base
       _aiRecommendedPrice = 70.0;
-      _titleController.text = '🚨 EMERGENCIA: ${_selectedCategory.name} urgente';
+      _titleController.text =
+          '🚨 EMERGENCIA: ${_selectedCategory.name} urgente';
     } else {
-      _titleController.text = 'Reparación de ${_selectedCategory.name.toLowerCase()}';
+      _titleController.text =
+          'Reparación de ${_selectedCategory.name.toLowerCase()}';
     }
   }
 
@@ -88,7 +99,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
         _selectedUrgency = 'Urgente (Hoy)';
         _proposedBudget = (_proposedBudget / 1.35).roundToDouble();
         _aiRecommendedPrice = (_aiRecommendedPrice / 1.35).roundToDouble();
-        _titleController.text = _titleController.text.replaceAll('🚨 ', '').replaceAll('🚨', '');
+        _titleController.text = _titleController.text
+            .replaceAll('🚨 ', '')
+            .replaceAll('🚨', '');
       }
     });
   }
@@ -100,22 +113,85 @@ class _PostJobScreenState extends State<PostJobScreen> {
     _addressController.dispose();
     _districtController.dispose();
     _referenceController.dispose();
+    _geocodeDebounce?.cancel();
     super.dispose();
   }
 
+  Future<void> _fillAddressFromMap(LatLng position) async {
+    _geocodeDebounce?.cancel();
+    _geocodeDebounce = Timer(const Duration(milliseconds: 450), () async {
+      try {
+        final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+          'format': 'jsonv2',
+          'lat': position.latitude.toString(),
+          'lon': position.longitude.toString(),
+          'zoom': '18',
+          'addressdetails': '1',
+          'accept-language': 'es',
+        });
+        final response = await http
+            .get(uri, headers: {'User-Agent': 'CHAMBA/1.0 (universidad app)'})
+            .timeout(const Duration(seconds: 6));
+        if (response.statusCode != 200 || !mounted) return;
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final address =
+            (json['address'] as Map?)?.cast<String, dynamic>() ?? {};
+        final road =
+            (address['road'] ?? address['pedestrian'] ?? address['residential'])
+                ?.toString();
+        final number = address['house_number']?.toString();
+        final district =
+            (address['suburb'] ??
+                    address['neighbourhood'] ??
+                    address['district'] ??
+                    address['town'] ??
+                    address['city_district'])
+                ?.toString();
+        final city =
+            (address['city'] ?? address['municipality'] ?? address['town'])
+                ?.toString();
+        final parts = [
+          if (road != null && road.isNotEmpty) road,
+          if (number != null && number.isNotEmpty) number,
+        ];
+        final locationText = parts.join(' ');
+        final districtText = [
+          if (district != null && district.isNotEmpty) district,
+          if (city != null && city.isNotEmpty) city,
+        ].join(', ');
+        setState(() {
+          if (locationText.isNotEmpty) _addressController.text = locationText;
+          if (districtText.isNotEmpty) _districtController.text = districtText;
+        });
+      } catch (_) {
+        // The user can still enter the address manually when geocoding is unavailable.
+      }
+    });
+  }
+
   Future<void> _pickImageAndDiagnose(ImageSource source) async {
-    final picker = ImagePicker();
     try {
-      final picked = await picker.pickImage(
-        source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 85,
-      );
+      final picked = await CameraImageService().pick(source);
       if (picked == null) return;
 
       final bytes = await picked.readAsBytes();
       await _executeRealAiDiagnosticFlow(bytes, picked.name);
+    } on CameraPermissionException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Permite la cámara para tomar una foto. Puedes publicar sin foto.',
+            ),
+            action: e.blocked
+                ? SnackBarAction(
+                    label: 'Ajustes',
+                    onPressed: CameraImageService.openSettings,
+                  )
+                : null,
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -129,7 +205,10 @@ class _PostJobScreenState extends State<PostJobScreen> {
     }
   }
 
-  Future<void> _executeRealAiDiagnosticFlow(Uint8List bytes, String filename) async {
+  Future<void> _executeRealAiDiagnosticFlow(
+    Uint8List bytes,
+    String filename,
+  ) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -150,8 +229,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
       Navigator.of(context, rootNavigator: true).pop();
 
       final matchingCategory = JobCategory.defaultCategories.firstWhere(
-        (c) => c.name.toLowerCase().contains(result.category.toLowerCase()) ||
-               result.category.toLowerCase().contains(c.name.toLowerCase()),
+        (c) =>
+            c.name.toLowerCase().contains(result.category.toLowerCase()) ||
+            result.category.toLowerCase().contains(c.name.toLowerCase()),
         orElse: () => _selectedCategory,
       );
 
@@ -161,7 +241,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
         _titleController.text = '$prefix Reparación de ${result.category}';
         _descriptionController.text = result.technicalDescription;
         _detectedAiMaterials = List<String>.from(result.materialsNeeded);
-        _aiRecommendedPrice = _isSos ? (result.averagePrice * 1.35).roundToDouble() : result.averagePrice;
+        _aiRecommendedPrice = _isSos
+            ? (result.averagePrice * 1.35).roundToDouble()
+            : result.averagePrice;
         _proposedBudget = _aiRecommendedPrice;
         _aiScenarioApplied = result.badgeLabel;
         _aiPriceRange = result.formattedPrice;
@@ -174,7 +256,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 ? '✨ ${result.badgeLabel} completado con éxito'
                 : 'ℹ️ ${result.badgeLabel} aplicado',
           ),
-          backgroundColor: result.isAiGenerated ? const Color(0xFF4F46E5) : const Color(0xFFD97706),
+          backgroundColor: result.isAiGenerated
+              ? const Color(0xFF4F46E5)
+              : const Color(0xFFD97706),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -231,13 +315,18 @@ class _PostJobScreenState extends State<PostJobScreen> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                            color: const Color(0xFF6366F1)
+                                .withValues(alpha: 0.35),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.auto_awesome, color: Colors.white, size: 22),
+                      child: const Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -253,7 +342,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                           ),
                           Text(
                             'Simula la captura de una foto/video para autocompletar',
-                            style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                            style: AppTypography.labelSm.copyWith(
+                              color: AppColors.muted,
+                            ),
                           ),
                         ],
                       ),
@@ -268,14 +359,22 @@ class _PostJobScreenState extends State<PostJobScreen> {
                           backgroundColor: const Color(0xFF6366F1),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: () {
                           Navigator.of(ctx).pop();
                           _pickImageAndDiagnose(ImageSource.camera);
                         },
                         icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                        label: const Text('Tomar Foto', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        label: const Text(
+                          'Tomar Foto',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -285,14 +384,22 @@ class _PostJobScreenState extends State<PostJobScreen> {
                           foregroundColor: const Color(0xFF6366F1),
                           side: const BorderSide(color: Color(0xFF6366F1)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: () {
                           Navigator.of(ctx).pop();
                           _pickImageAndDiagnose(ImageSource.gallery);
                         },
                         icon: const Icon(Icons.photo_library_rounded, size: 18),
-                        label: const Text('Galería', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        label: const Text(
+                          'Galería',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -300,7 +407,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 const SizedBox(height: 18),
                 Text(
                   'O selecciona una avería de prueba:',
-                  style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelLg.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _buildAiScenarioOption(
@@ -318,9 +427,15 @@ class _PostJobScreenState extends State<PostJobScreen> {
                       accentColor: const Color(0xFF0284C7),
                       categoryId: 'gasfiteria',
                       categoryName: 'Gasfitería',
-                      title: 'Reparación de fuga en trampa de lavadero y codo PVC',
+                      title:
+                          'Reparación de fuga en trampa de lavadero y codo PVC',
                       description: 'Goteo constante en la conexión de desagüe bajo el lavadero de cocina. La rosca está vencida y filtra agua cada vez que se abre la llave.',
-                      materials: ['Cinta teflón 3/4"', 'Trampa P de PVC 1 1/2"', 'Pegamento PVC Oatey', 'Empaque de jebe cónico'],
+                      materials: [
+                        'Cinta teflón 3/4"',
+                        'Trampa P de PVC 1 1/2"',
+                        'Pegamento PVC Oatey',
+                        'Empaque de jebe cónico',
+                      ],
                       suggestedPrice: 55.0,
                       priceRange: 'S/. 50 - S/. 65',
                     );
@@ -341,9 +456,14 @@ class _PostJobScreenState extends State<PostJobScreen> {
                       accentColor: const Color(0xFFF59E0B),
                       categoryId: 'electricidad',
                       categoryName: 'Electricidad',
-                      title: 'Cambio de tomacorriente sobrecalentado con chispas',
+                      title:
+                          'Cambio de tomacorriente sobrecalentado con chispas',
                       description: 'Tomacorriente doble en sala emite chispas y olor a quemado al conectar artefactos. Falso contacto visible y bornes recalentados.',
-                      materials: ['Tomacorriente doble con tierra Ticino', 'Cinta aislante 3M Temflex', 'Terminales punta de cobre'],
+                      materials: [
+                        'Tomacorriente doble con tierra Ticino',
+                        'Cinta aislante 3M Temflex',
+                        'Terminales punta de cobre',
+                      ],
                       suggestedPrice: 45.0,
                       priceRange: 'S/. 40 - S/. 55',
                     );
@@ -366,7 +486,11 @@ class _PostJobScreenState extends State<PostJobScreen> {
                       categoryName: 'Carpintería',
                       title: 'Ajuste y cepillado de puerta de madera hinchada',
                       description: 'La puerta principal roza fuertemente contra el piso y el marco por humedad ambiental en Chiclayo, trabando la chapa al cerrar.',
-                      materials: ['Tornillos para bisagra 1 1/2"', 'Lija para madera grano 80 y 120', 'Lubricante para chapa WD-40'],
+                      materials: [
+                        'Tornillos para bisagra 1 1/2"',
+                        'Lija para madera grano 80 y 120',
+                        'Lubricante para chapa WD-40',
+                      ],
                       suggestedPrice: 60.0,
                       priceRange: 'S/. 55 - S/. 70',
                     );
@@ -426,7 +550,10 @@ class _PostJobScreenState extends State<PostJobScreen> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceContainer,
                               borderRadius: BorderRadius.circular(6),
@@ -453,7 +580,11 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     ],
                   ),
                 ),
-                const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.muted),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 14,
+                  color: AppColors.muted,
+                ),
               ],
             ),
           ),
@@ -500,7 +631,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
       _titleController.text = _isSos ? '🚨 $title' : title;
       _descriptionController.text = description;
       _detectedAiMaterials = List<String>.from(materials);
-      _aiRecommendedPrice = _isSos ? (suggestedPrice * 1.35).roundToDouble() : suggestedPrice;
+      _aiRecommendedPrice = _isSos
+          ? (suggestedPrice * 1.35).roundToDouble()
+          : suggestedPrice;
       _proposedBudget = _aiRecommendedPrice;
       _aiScenarioApplied = scenarioName;
       _aiPriceRange = priceRange;
@@ -533,7 +666,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
     if (_proposedBudget < 20.0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ El presupuesto mínimo para publicar en CHAMBA es de S/ 20.00 (ALCANCE.md §3).'),
+          content: Text(
+            '⚠️ El presupuesto mínimo para publicar en CHAMBA es de S/ 20.00 (ALCANCE.md §3).',
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -541,7 +676,8 @@ class _PostJobScreenState extends State<PostJobScreen> {
     }
 
     // Alerta suave de IA si el precio es < 50% o > 300% del estimado (ALCANCE.md §3, §8 L10)
-    final isDeviated = _proposedBudget < (_aiRecommendedPrice * 0.5) ||
+    final isDeviated =
+        _proposedBudget < (_aiRecommendedPrice * 0.5) ||
         _proposedBudget > (_aiRecommendedPrice * 3.0);
 
     if (isDeviated && !_hasConfirmedPriceDeviation) {
@@ -567,9 +703,14 @@ class _PostJobScreenState extends State<PostJobScreen> {
               child: const Text('Revisar precio'),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Sí, continuar', style: TextStyle(color: Colors.white)),
+              child: const Text(
+                'Sí, continuar',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -605,10 +746,8 @@ class _PostJobScreenState extends State<PostJobScreen> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => ReceivedBidsScreen(
-          appState: widget.appState,
-          job: newJob,
-        ),
+        builder: (_) =>
+            ReceivedBidsScreen(appState: widget.appState, job: newJob),
       ),
     );
   }
@@ -640,7 +779,11 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     color: Color(0xFFFEF3C7),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.warning_amber_rounded, size: 54, color: Color(0xFFB45309)),
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 54,
+                    color: Color(0xFFB45309),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -656,7 +799,10 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 Text(
                   'Tienes una labor pendiente de confirmación (${pendingJob.title}). '
                   'Debes revisar la evidencia fotográfica del técnico y liberar el pago o reportar un problema antes de publicar una nueva solicitud.',
-                  style: AppTypography.bodyMd.copyWith(color: AppColors.muted, height: 1.4),
+                  style: AppTypography.bodyMd.copyWith(
+                    color: AppColors.muted,
+                    height: 1.4,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 28),
@@ -684,7 +830,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
     return Scaffold(
       backgroundColor: _isSos ? const Color(0xFFFFF7F5) : AppColors.canvas,
       appBar: AppBar(
-        title: Text(_isSos ? '🚨 Publicar Emergencia SOS' : 'Publicar Solicitud'),
+        title: Text(
+          _isSos ? '🚨 Publicar Emergencia SOS' : 'Publicar Solicitud',
+        ),
         backgroundColor: _isSos ? AppColors.sosRedLight : AppColors.canvas,
         foregroundColor: _isSos ? AppColors.sosRedDark : AppColors.primary,
         leading: IconButton(
@@ -696,7 +844,10 @@ class _PostJobScreenState extends State<PostJobScreen> {
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 16.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -733,7 +884,11 @@ class _PostJobScreenState extends State<PostJobScreen> {
                                 color: Colors.white.withValues(alpha: 0.18),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
+                              child: const Icon(
+                                Icons.auto_awesome,
+                                color: Colors.white,
+                                size: 24,
+                              ),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -741,22 +896,30 @@ class _PostJobScreenState extends State<PostJobScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Wrap(
-                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
                                     spacing: 6,
                                     runSpacing: 4,
                                     children: [
                                       Text(
-                                        _aiScenarioApplied ?? '✨ Diagnóstico Visual',
-                                        style: AppTypography.bodyLgMedium.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                        ),
+                                        _aiScenarioApplied ??
+                                            '✨ Diagnóstico Visual',
+                                        style: AppTypography.bodyLgMedium
+                                            .copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                       ),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: Colors.amber,
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: Text(
                                           'NUEVO',
@@ -775,14 +938,20 @@ class _PostJobScreenState extends State<PostJobScreen> {
                                         ? 'Falla detectada: $_aiScenarioApplied (Toca para cambiar)'
                                         : 'Sube o simula una foto para detectar falla, repuestos y precio justo.',
                                     style: AppTypography.labelSm.copyWith(
-                                      color: Colors.white.withValues(alpha: 0.85),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.85,
+                                      ),
                                       fontSize: 11.5,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white70),
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 14,
+                              color: Colors.white70,
+                            ),
                           ],
                         ),
                       ),
@@ -798,12 +967,16 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     color: _isSos ? AppColors.sosRedLight : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: _isSos ? AppColors.sosRed : const Color(0x1F173B4D),
+                      color: _isSos
+                          ? AppColors.sosRed
+                          : const Color(0x1F173B4D),
                       width: _isSos ? 2 : 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: _isSos ? AppColors.sosGlow : const Color(0x08173B4D),
+                        color: _isSos
+                            ? AppColors.sosGlow
+                            : const Color(0x08173B4D),
                         blurRadius: _isSos ? 12 : 6,
                         offset: const Offset(0, 3),
                       ),
@@ -814,11 +987,15 @@ class _PostJobScreenState extends State<PostJobScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: _isSos ? AppColors.sosRed : AppColors.surfaceContainer,
+                          color: _isSos
+                              ? AppColors.sosRed
+                              : AppColors.surfaceContainer,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          _isSos ? Icons.emergency_rounded : Icons.flash_on_rounded,
+                          _isSos
+                              ? Icons.emergency_rounded
+                              : Icons.flash_on_rounded,
                           color: _isSos ? Colors.white : AppColors.secondary,
                           size: 24,
                         ),
@@ -834,7 +1011,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.bodyLgMedium.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: _isSos ? AppColors.sosRedDark : AppColors.neutral,
+                                color: _isSos
+                                    ? AppColors.sosRedDark
+                                    : AppColors.neutral,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -843,8 +1022,12 @@ class _PostJobScreenState extends State<PostJobScreen> {
                                   ? '⚡ Tarifa de Emergencia (+35%) • Atención garantizada en < 30 min.'
                                   : 'Para fugas graves, cerraduras rotas o cortes de luz.',
                               style: AppTypography.labelSm.copyWith(
-                                color: _isSos ? AppColors.sosRedDark : AppColors.muted,
-                                fontWeight: _isSos ? FontWeight.w700 : FontWeight.w500,
+                                color: _isSos
+                                    ? AppColors.sosRedDark
+                                    : AppColors.muted,
+                                fontWeight: _isSos
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                               ),
                             ),
                           ],
@@ -862,7 +1045,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 const SizedBox(height: 18),
 
                 Text(
-                  _isSos ? '🚨 Detalles de la Emergencia SOS' : 'Detalla lo que necesitas',
+                  _isSos
+                      ? '🚨 Detalles de la Emergencia SOS'
+                      : 'Detalla lo que necesitas',
                   style: AppTypography.headlineSm.copyWith(
                     fontWeight: FontWeight.w800,
                     color: _isSos ? AppColors.sosRedDark : AppColors.primary,
@@ -880,7 +1065,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 // Category selector
                 Text(
                   'Categoría del servicio',
-                  style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelLg.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 SingleChildScrollView(
@@ -894,13 +1081,19 @@ class _PostJobScreenState extends State<PostJobScreen> {
                           selectedColor: AppColors.primary,
                           backgroundColor: AppColors.card,
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : AppColors.neutral,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.neutral,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                           ),
                           avatar: Icon(
                             cat.icon,
                             size: 16,
-                            color: isSelected ? Colors.white : AppColors.primary,
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.primary,
                           ),
                           label: Text(cat.name),
                           selected: isSelected,
@@ -923,7 +1116,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 // Job Title
                 Text(
                   'Título de la solicitud',
-                  style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelLg.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
@@ -931,15 +1126,18 @@ class _PostJobScreenState extends State<PostJobScreen> {
                   decoration: const InputDecoration(
                     hintText: 'Ej. Fuga en lavadero de cocina',
                   ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Ingresa un título descriptivo' : null,
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Ingresa un título descriptivo'
+                      : null,
                 ),
                 const SizedBox(height: 18),
 
                 // Description
                 Text(
                   'Descripción del trabajo',
-                  style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelLg.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
@@ -958,14 +1156,20 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF5F3FF),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.handyman_rounded, color: Color(0xFF7C3AED), size: 18),
+                            const Icon(
+                              Icons.handyman_rounded,
+                              color: Color(0xFF7C3AED),
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -978,9 +1182,13 @@ class _PostJobScreenState extends State<PostJobScreen> {
                             ),
                             if (_aiPriceRange != null)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+                                  color: const Color(0xFF7C3AED)
+                                      .withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -997,7 +1205,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                         const SizedBox(height: 4),
                         Text(
                           'Puedes comprarlos con anticipación o solicitarlos al técnico asignado:',
-                          style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                          style: AppTypography.labelSm.copyWith(
+                            color: AppColors.muted,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Wrap(
@@ -1005,16 +1215,25 @@ class _PostJobScreenState extends State<PostJobScreen> {
                           runSpacing: 6,
                           children: _detectedAiMaterials.map((mat) {
                             return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFFDDD6FE)),
+                                border: Border.all(
+                                  color: const Color(0xFFDDD6FE),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.check, size: 13, color: Color(0xFF7C3AED)),
+                                  const Icon(
+                                    Icons.check,
+                                    size: 13,
+                                    color: Color(0xFF7C3AED),
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     mat,
@@ -1038,7 +1257,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 // Interactive Map Section
                 Text(
                   'Ubicación en el Mapa',
-                  style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelLg.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -1055,6 +1276,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
                       _selectedLat = pos.latitude;
                       _selectedLng = pos.longitude;
                     });
+                    _fillAddressFromMap(pos);
                   },
                 ),
                 const SizedBox(height: 16),
@@ -1069,7 +1291,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                         children: [
                           Text(
                             'Distrito',
-                            style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                            style: AppTypography.labelLg.copyWith(
+                              color: AppColors.neutral,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           TextFormField(
@@ -1089,7 +1313,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                         children: [
                           Text(
                             'Dirección',
-                            style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                            style: AppTypography.labelLg.copyWith(
+                              color: AppColors.neutral,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           TextFormField(
@@ -1107,13 +1333,16 @@ class _PostJobScreenState extends State<PostJobScreen> {
 
                 Text(
                   'Referencia del domicilio',
-                  style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelLg.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _referenceController,
                   decoration: const InputDecoration(
-                    hintText: 'Ej. Frente a parque, portón marrón, timbre blanco',
+                    hintText:
+                        'Ej. Frente a parque, portón marrón, timbre blanco',
                     prefixIcon: Icon(Icons.near_me_outlined, size: 20),
                   ),
                 ),
@@ -1122,7 +1351,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 // Urgency Chips
                 Text(
                   '¿Para cuándo lo necesitas?',
-                  style: AppTypography.labelLg.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelLg.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 SingleChildScrollView(
@@ -1136,8 +1367,12 @@ class _PostJobScreenState extends State<PostJobScreen> {
                           selectedColor: AppColors.surfaceContainer,
                           backgroundColor: AppColors.card,
                           labelStyle: TextStyle(
-                            color: isSelected ? AppColors.primary : AppColors.neutral,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.neutral,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                           ),
                           label: Text(urg),
                           selected: isSelected,
@@ -1157,7 +1392,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
                   recommendedPrice: _aiRecommendedPrice,
                   minPrice: 20.0,
                   maxPrice: 2000.0,
-                  label: _isSos ? 'Presupuesto con Tarifa de Emergencia' : 'Tu Presupuesto Inicial Ofrecido',
+                  label: _isSos
+                      ? 'Presupuesto con Tarifa de Emergencia'
+                      : 'Tu Presupuesto Inicial Ofrecido',
                   isSosSurge: _isSos,
                   surgeLabel: '⚡ Tarifa Dinámica de Emergencia (+35%) • Llegada en < 30 min',
                   onPriceChanged: (val) {
@@ -1171,8 +1408,8 @@ class _PostJobScreenState extends State<PostJobScreen> {
                   label: _isPublishing
                       ? 'Despachando alerta SOS...'
                       : (_isSos
-                          ? '🚨 Publicar Emergencia SOS (<30 min)'
-                          : 'Publicar Solicitud en Chiclayo'),
+                            ? '🚨 Publicar Emergencia SOS (<30 min)'
+                            : 'Publicar Solicitud en Chiclayo'),
                   leadingIcon: _isSos ? Icons.emergency : Icons.send_rounded,
                   isLoading: _isPublishing,
                   backgroundColor: _isSos ? AppColors.sosRed : null,
@@ -1266,7 +1503,10 @@ class _AiScanningModalDialogState extends State<_AiScanningModalDialog>
               decoration: BoxDecoration(
                 color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: widget.accentColor.withValues(alpha: 0.6), width: 1.5),
+                border: Border.all(
+                  color: widget.accentColor.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
@@ -1277,7 +1517,11 @@ class _AiScanningModalDialogState extends State<_AiScanningModalDialog>
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(widget.icon, size: 48, color: widget.accentColor.withValues(alpha: 0.85)),
+                          Icon(
+                            widget.icon,
+                            size: 48,
+                            color: widget.accentColor.withValues(alpha: 0.85),
+                          ),
                           const SizedBox(height: 8),
                           Text(
                             widget.scenarioName,
@@ -1294,7 +1538,9 @@ class _AiScanningModalDialogState extends State<_AiScanningModalDialog>
                     // Viewfinder corner marks
                     Positioned.fill(
                       child: CustomPaint(
-                        painter: _ViewfinderReticlePainter(color: widget.accentColor),
+                        painter: _ViewfinderReticlePainter(
+                          color: widget.accentColor,
+                        ),
                       ),
                     ),
                     // Sweeping Laser Beam
@@ -1319,7 +1565,9 @@ class _AiScanningModalDialogState extends State<_AiScanningModalDialog>
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: widget.accentColor.withValues(alpha: 0.8),
+                                  color: widget.accentColor.withValues(
+                                    alpha: 0.8,
+                                  ),
                                   blurRadius: 10,
                                   spreadRadius: 2,
                                 ),
@@ -1402,22 +1650,55 @@ class _ViewfinderReticlePainter extends CustomPainter {
     const padding = 12.0;
 
     // Top-left
-    canvas.drawLine(const Offset(padding, padding + cornerLength), const Offset(padding, padding), paint);
-    canvas.drawLine(const Offset(padding, padding), const Offset(padding + cornerLength, padding), paint);
+    canvas.drawLine(
+      const Offset(padding, padding + cornerLength),
+      const Offset(padding, padding),
+      paint,
+    );
+    canvas.drawLine(
+      const Offset(padding, padding),
+      const Offset(padding + cornerLength, padding),
+      paint,
+    );
 
     // Top-right
-    canvas.drawLine(Offset(size.width - padding - cornerLength, padding), Offset(size.width - padding, padding), paint);
-    canvas.drawLine(Offset(size.width - padding, padding), Offset(size.width - padding, padding + cornerLength), paint);
+    canvas.drawLine(
+      Offset(size.width - padding - cornerLength, padding),
+      Offset(size.width - padding, padding),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width - padding, padding),
+      Offset(size.width - padding, padding + cornerLength),
+      paint,
+    );
 
     // Bottom-left
-    canvas.drawLine(Offset(padding, size.height - padding - cornerLength), Offset(padding, size.height - padding), paint);
-    canvas.drawLine(Offset(padding, size.height - padding), Offset(padding + cornerLength, size.height - padding), paint);
+    canvas.drawLine(
+      Offset(padding, size.height - padding - cornerLength),
+      Offset(padding, size.height - padding),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(padding, size.height - padding),
+      Offset(padding + cornerLength, size.height - padding),
+      paint,
+    );
 
     // Bottom-right
-    canvas.drawLine(Offset(size.width - padding - cornerLength, size.height - padding), Offset(size.width - padding, size.height - padding), paint);
-    canvas.drawLine(Offset(size.width - padding, size.height - padding - cornerLength), Offset(size.width - padding, size.height - padding), paint);
+    canvas.drawLine(
+      Offset(size.width - padding - cornerLength, size.height - padding),
+      Offset(size.width - padding, size.height - padding),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width - padding, size.height - padding - cornerLength),
+      Offset(size.width - padding, size.height - padding),
+      paint,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _ViewfinderReticlePainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant _ViewfinderReticlePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

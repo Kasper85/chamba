@@ -44,8 +44,6 @@ describe('WorkerProfileService (Loop L9 - Persistencia disponibilidad §8 L9)', 
         create: {
           userId: 'worker-user-1',
           isAvailable: false,
-          bio: 'Técnico especialista',
-          specialty: 'Servicios Generales',
         },
         select: {
           id: true,

@@ -7,6 +7,7 @@ import '../state/app_state.dart';
 import 'notifications_sheet.dart';
 import 'settings_screen.dart';
 import 'welcome_screen.dart';
+import 'complete_client_profile_screen.dart';
 
 class UserProfileScreen extends StatelessWidget {
   final AppState appState;
@@ -204,6 +205,17 @@ class UserProfileScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Options List
+            _buildOptionTile(
+              context,
+              icon: Icons.edit_outlined,
+              title: 'Editar perfil',
+              subtitle: 'Actualiza tus datos personales',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CompleteClientProfileScreen(appState: appState),
+                ),
+              ),
+            ),
             _buildOptionTile(
               context,
               icon: Icons.notifications_outlined,

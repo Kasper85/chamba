@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_card.dart';
 import '../state/app_state.dart';
 import 'chat_screen.dart';
+import '../../data/models/job_request.dart';
 
 class MessagesInboxScreen extends StatefulWidget {
   final AppState appState;
@@ -18,13 +20,41 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
   String _searchQuery = '';
 
   @override
+  void initState() {
+    super.initState();
+    widget.appState.addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.appState.removeListener(_refresh);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final jobsWithConversations = widget.appState.jobs.where((job) {
       final messages = widget.appState.messagesForJob(job.id);
-      final matchesSearch = job.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (job.workerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
+      final matchesSearch =
+          job.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          (job.workerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
+              false) ||
           job.categoryName.toLowerCase().contains(_searchQuery.toLowerCase());
-      return messages.isNotEmpty && matchesSearch;
+      final activeChat =
+          job.workerId != null &&
+          ![
+            JobStatus.completed,
+            JobStatus.cancelled,
+            JobStatus.refunded,
+          ].contains(job.status);
+      return (widget.appState.authToken != null
+              ? activeChat
+              : messages.isNotEmpty) &&
+          matchesSearch;
     }).toList();
 
     return Scaffold(
@@ -49,9 +79,18 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Buscar por técnico o servicio...',
-                hintStyle: AppTypography.bodyMd.copyWith(color: AppColors.muted),
-                prefixIcon: const Icon(Icons.search, color: AppColors.muted, size: 20),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                hintStyle: AppTypography.bodyMd.copyWith(
+                  color: AppColors.muted,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.muted,
+                  size: 20,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 16,
+                ),
                 filled: true,
                 fillColor: AppColors.canvas,
                 border: OutlineInputBorder(
@@ -76,7 +115,11 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                     itemBuilder: (context, index) {
                       final job = jobsWithConversations[index];
                       final messages = widget.appState.messagesForJob(job.id);
-                      final lastMessage = messages.isNotEmpty ? messages.last : null;
+                      final lastMessage =
+                          widget.appState.authToken == null &&
+                              messages.isNotEmpty
+                          ? messages.last
+                          : null;
 
                       final otherPartyName = widget.appState.isClient
                           ? (job.workerName ?? 'Especialista')
@@ -106,7 +149,9 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                                 radius: 26,
                                 backgroundColor: AppColors.primary,
                                 child: Text(
-                                  otherPartyInitials.isNotEmpty ? otherPartyInitials : 'CH',
+                                  otherPartyInitials.isNotEmpty
+                                      ? otherPartyInitials
+                                      : 'CH',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -120,15 +165,17 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Expanded(
                                           child: Text(
                                             otherPartyName,
-                                            style: AppTypography.bodyLgMedium.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.neutral,
-                                            ),
+                                            style: AppTypography.bodyLgMedium
+                                                .copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.neutral,
+                                                ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
@@ -154,7 +201,8 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      lastMessage?.text ?? 'Conversación activa',
+                                      lastMessage?.text ??
+                                          'Conversación activa',
                                       style: AppTypography.bodyMd.copyWith(
                                         color: AppColors.muted,
                                         fontSize: 13,
@@ -166,7 +214,10 @@ class _MessagesInboxScreenState extends State<MessagesInboxScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Icon(Icons.chevron_right, color: AppColors.muted),
+                              const Icon(
+                                Icons.chevron_right,
+                                color: AppColors.muted,
+                              ),
                             ],
                           ),
                         ),

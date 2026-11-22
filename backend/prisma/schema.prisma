@@ -80,6 +80,7 @@ model User {
   clientJobs     JobRequest[]    @relation("ClientJobs")
   disputesOpened Dispute[]       @relation("DisputesOpened")
   supportTickets SupportTicket[]
+  messages       Message[]
 
   @@map("users")
 }
@@ -90,6 +91,12 @@ model WorkerProfile {
   bio           String?
   district      String?
   specialty     String?
+  dni           String?
+  baseRate      Float? @map("base_rate")
+  serviceRadiusKm Int? @map("service_radius_km")
+  experienceYears Int? @map("experience_years")
+  skills        String[] @default([])
+  portfolio     Json @default("[]")
   isAvailable   Boolean  @default(true) @map("is_available")
   rating        Float    @default(5.0)
   completedJobs Int      @default(0) @map("completed_jobs")
@@ -180,11 +187,29 @@ model JobRequest {
   disputes        Dispute[]
   ratings         Rating[]
   supportTickets  SupportTicket[]
+  messages        Message[]
 
   @@index([clientId])
   @@index([workerId])
   @@index([status])
   @@map("job_requests")
+}
+
+model Message {
+  id String @id @default(uuid())
+  clientMessageId String @map("client_message_id")
+  jobRequestId String @map("job_request_id")
+  senderId String @map("sender_id")
+  text String
+  audioBase64 String? @map("audio_base64")
+  audioDurationSeconds Int? @map("audio_duration_seconds")
+  createdAt DateTime @default(now()) @map("created_at")
+  deliveredAt DateTime? @map("delivered_at")
+  sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  jobRequest JobRequest @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
+  @@unique([jobRequestId, senderId, clientMessageId])
+  @@index([jobRequestId, createdAt])
+  @@map("messages")
 }
 
 model Bid {

@@ -17,7 +17,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _pushNotifications = true;
   bool _bidSound = true;
   bool _locationTracking = true;
-  String _selectedDistrict = 'Santa Victoria, Chiclayo';
+  String _selectedDistrict = '';
 
   final List<String> _districts = [
     'Santa Victoria, Chiclayo',
@@ -25,12 +25,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'La Victoria, Chiclayo',
     'José Leonardo Ortiz, Chiclayo',
     'Pimentel, Lambayeque',
+    'Pomalca',
   ];
 
   @override
   void initState() {
     super.initState();
-    _selectedDistrict = widget.appState.clientDistrict;
+    final currentDistrict = widget.appState.clientDistrict;
+    _selectedDistrict = _districts.contains(currentDistrict) ? currentDistrict : '';
   }
 
   @override
@@ -90,9 +92,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
-                      value: _selectedDistrict,
+                      value: _selectedDistrict.isEmpty ? null : _selectedDistrict,
+                      hint: const Text('Selecciona tu distrito'),
                       isExpanded: true,
-                      items: _districts.map((d) {
+                      items: _districts.toSet().map((d) {
                         return DropdownMenuItem<String>(
                           value: d,
                           child: Text(d, style: AppTypography.bodyMd),

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
@@ -69,14 +70,66 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on AuthApiException catch (e) {
       if (!mounted) return;
+      if (e.statusCode == 401 && e.message.contains('No existe una cuenta')) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RegisterScreen(appState: widget.appState),
+          ),
+        );
+        return;
+      }
       setState(() => _errorMessage = e.message);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = 'Ocurrió un error inesperado al conectar con el servidor.');
+      setState(
+        () => _errorMessage =
+            'Ocurrió un error inesperado al conectar con el servidor.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    if (_isLoading) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await _authApi.loginWithGoogle();
+      await widget.appState.setSession(response.user, response.accessToken);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => RoleSelectionScreen(appState: widget.appState),
+        ),
+        (route) => false,
+      );
+    } on AuthApiException catch (e) {
+      if (!mounted) return;
+      if (e.statusCode == 401 && e.message.contains('no ha sido creada')) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RegisterScreen(appState: widget.appState),
+          ),
+        );
+      } else {
+        setState(() => _errorMessage = e.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _errorMessage = 'No se pudo iniciar sesión con Google.');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -117,7 +170,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: AppColors.primary,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.handyman_rounded, color: Colors.white, size: 24),
+                          child: const Icon(
+                            Icons.handyman_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                       ),
                     ),
@@ -156,11 +213,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                        const Icon(
+                          Icons.error_outline,
+                          color: AppColors.error,
+                          size: 20,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -194,15 +257,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: 'ejemplo@correo.pe',
-                          prefixIcon: const Icon(Icons.email_outlined, color: AppColors.muted),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          prefixIcon: const Icon(
+                            Icons.email_outlined,
+                            color: AppColors.muted,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Por favor ingresa tu correo electrónico';
                           }
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                              .hasMatch(value.trim())) {
                             return 'Ingresa un formato de correo válido';
                           }
                           return null;
@@ -223,16 +295,28 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           hintText: '••••••••',
-                          prefixIcon: const Icon(Icons.lock_outline, color: AppColors.muted),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: AppColors.muted,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              _obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                               color: AppColors.muted,
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                           ),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -248,6 +332,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         isLoading: _isLoading,
                         onPressed: _isLoading ? null : _handleLogin,
                       ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.account_circle_outlined),
+                        label: const Text('Continuar con Google'),
+                        onPressed: _isLoading ? null : _handleGoogleLogin,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(
+                            color: AppColors.outlineVariant,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -262,13 +362,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Text(
                       '¿Aún no tienes una cuenta?',
-                      style: AppTypography.bodyMd.copyWith(color: AppColors.muted),
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.muted,
+                      ),
                     ),
                     TextButton(
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => RegisterScreen(appState: widget.appState),
+                            builder: (_) =>
+                                RegisterScreen(appState: widget.appState),
                           ),
                         );
                       },
@@ -308,7 +411,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             ActionChip(
                               avatar: const CircleAvatar(
                                 backgroundColor: AppColors.primary,
-                                child: Text('AG', style: TextStyle(fontSize: 10, color: Colors.white)),
+                                child: Text(
+                                  'AG',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                               label: const Text('Ana'),
                               onPressed: () {
@@ -322,7 +431,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             ActionChip(
                               avatar: const CircleAvatar(
                                 backgroundColor: AppColors.secondary,
-                                child: Text('JT', style: TextStyle(fontSize: 10, color: Colors.white)),
+                                child: Text(
+                                  'JT',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                               label: const Text('José'),
                               onPressed: () {
@@ -336,7 +451,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             ActionChip(
                               avatar: const CircleAvatar(
                                 backgroundColor: AppColors.tertiary,
-                                child: Text('CR', style: TextStyle(fontSize: 10, color: Colors.white)),
+                                child: Text(
+                                  'CR',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                               label: const Text('Carlos'),
                               onPressed: () {
@@ -350,7 +471,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             ActionChip(
                               avatar: const CircleAvatar(
                                 backgroundColor: AppColors.primary,
-                                child: Text('MM', style: TextStyle(fontSize: 10, color: Colors.white)),
+                                child: Text(
+                                  'MM',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                               label: const Text('Marcos (Lima)'),
                               onPressed: () {

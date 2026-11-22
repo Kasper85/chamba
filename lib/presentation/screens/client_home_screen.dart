@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_button.dart';
@@ -19,17 +19,14 @@ import 'worker_profile_detail_screen.dart';
 class ClientHomeScreen extends StatefulWidget {
   final AppState? appState;
 
-  const ClientHomeScreen({
-    super.key,
-    this.appState,
-  });
+  const ClientHomeScreen({super.key, this.appState});
 
   @override
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
 class _ClientHomeScreenState extends State<ClientHomeScreen>
-  with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late AppState _appState;
   late AnimationController _radarController;
   bool _showMap = true;
@@ -51,30 +48,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
   }
 
   Future<void> _detectLocationAndFetchNearby() async {
-    double lat = _appState.userLatitude;
-    double lng = _appState.userLongitude;
-    try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse) {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 4),
-          ),
-        );
-        lat = pos.latitude;
-        lng = pos.longitude;
-      }
-    } catch (_) {
-      // Usar coordenadas por defecto en caso de emulador sin GPS o error
-    }
-    if (mounted) {
-      await _appState.fetchNearbyWorkers(latitude: lat, longitude: lng);
-    }
+    // La ubicación se solicita únicamente desde el mapa/GPS, cuando el usuario
+    // decide usar esa función. El inicio puede cargar técnicos con la zona
+    // guardada sin abrir un diálogo de permisos inesperado.
+    await _appState.fetchNearbyWorkers(
+      latitude: _appState.userLatitude,
+      longitude: _appState.userLongitude,
+    );
   }
 
   void _onStateChange() {
@@ -100,7 +80,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
           color: AppColors.secondary,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 16.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -115,17 +98,26 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Error al sincronizar solicitudes. Comprueba tu conexión.',
-                            style: AppTypography.labelSm.copyWith(color: Colors.red.shade900),
+                            style: AppTypography.labelSm.copyWith(
+                              color: Colors.red.shade900,
+                            ),
                           ),
                         ),
                         TextButton(
                           onPressed: () => _appState.fetchJobs(),
-                          child: const Text('Reintentar', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text(
+                            'Reintentar',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ],
                     ),
@@ -213,7 +205,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.secondary,
                               borderRadius: BorderRadius.circular(6),
@@ -227,7 +222,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                             ),
                           ),
                           const Spacer(),
-                          const Icon(Icons.flash_on, color: Colors.amber, size: 20),
+                          const Icon(
+                            Icons.flash_on,
+                            color: Colors.amber,
+                            size: 20,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -253,7 +252,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => PostJobScreen(appState: _appState),
+                              builder: (_) =>
+                                  PostJobScreen(appState: _appState),
                             ),
                           );
                         },
@@ -282,7 +282,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                     const SizedBox(width: 8),
                     Text(
                       '8 oficios',
-                      style: AppTypography.labelMd.copyWith(color: AppColors.muted),
+                      style: AppTypography.labelMd.copyWith(
+                        color: AppColors.muted,
+                      ),
                     ),
                   ],
                 ),
@@ -308,7 +310,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.secondary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
@@ -379,7 +384,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                     decoration: BoxDecoration(
                       color: AppColors.card,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0x14202D33), width: 1),
+                      border: Border.all(
+                        color: const Color(0x14202D33),
+                        width: 1,
+                      ),
                       boxShadow: const [
                         BoxShadow(
                           color: Color(0x08173B4D),
@@ -459,7 +467,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                       runSpacing: 6,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
@@ -492,7 +503,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(6),
@@ -539,7 +553,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        icon: const Icon(Icons.flash_on_rounded, color: AppColors.sosRed, size: 20),
+                        icon: const Icon(
+                          Icons.flash_on_rounded,
+                          color: AppColors.sosRed,
+                          size: 20,
+                        ),
                         label: Text(
                           'Pedir Chamba SOS Ahora (< 30 min)',
                           maxLines: 1,
@@ -573,7 +591,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
 
   Widget _buildActiveJobCard(JobRequest job) {
     final hasOffers = job.bids.isNotEmpty;
-    final isOnTheWayOrActive = job.status == JobStatus.onTheWay ||
+    final isOnTheWayOrActive =
+        job.status == JobStatus.onTheWay ||
         job.status == JobStatus.onSite ||
         job.status == JobStatus.inProgress ||
         job.status == JobStatus.forConfirmation;
@@ -601,13 +620,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
             if (isOnTheWayOrActive) {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => JobTrackingScreen(appState: _appState, job: job),
+                  builder: (_) =>
+                      JobTrackingScreen(appState: _appState, job: job),
                 ),
               );
             } else {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => ReceivedBidsScreen(appState: _appState, job: job),
+                  builder: (_) =>
+                      ReceivedBidsScreen(appState: _appState, job: job),
                 ),
               );
             }
@@ -629,7 +650,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                           children: [
                             if (isSos) ...[
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.sosRedLight,
                                   borderRadius: BorderRadius.circular(6),
@@ -645,7 +669,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                               ),
                             ],
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceContainer,
                                 borderRadius: BorderRadius.circular(6),
@@ -661,7 +688,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                             ),
                             Text(
                               '• ${job.district}',
-                              style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                              style: AppTypography.labelSm.copyWith(
+                                color: AppColors.muted,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -672,7 +701,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                           job.title,
                           style: AppTypography.bodyLgMedium.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: isSos ? AppColors.sosRedDark : AppColors.neutral,
+                            color: isSos
+                                ? AppColors.sosRedDark
+                                : AppColors.neutral,
                           ),
                         ),
                       ],
@@ -724,7 +755,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.secondary),
+                        const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 12,
+                          color: AppColors.secondary,
+                        ),
                       ],
                     ),
                   ] else if (isOnTheWayOrActive) ...[
@@ -740,16 +775,26 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.tertiary),
+                        const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 12,
+                          color: AppColors.tertiary,
+                        ),
                       ],
                     ),
                   ] else ...[
                     isSos
-                        ? const ChambaBadge.sos(label: '🚨 Alerta SOS Enviada (<30 min)')
-                        : const ChambaBadge.negotiating(label: 'Buscando especialistas...'),
+                        ? const ChambaBadge.sos(
+                            label: '🚨 Alerta SOS Enviada (<30 min)',
+                          )
+                        : const ChambaBadge.negotiating(
+                            label: 'Buscando especialistas...',
+                          ),
                     Text(
                       'Ver detalles',
-                      style: AppTypography.labelMd.copyWith(color: AppColors.muted),
+                      style: AppTypography.labelMd.copyWith(
+                        color: AppColors.muted,
+                      ),
                     ),
                   ],
                 ],
@@ -788,7 +833,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                   const SizedBox(height: 2),
                   Text(
                     'PostGIS en tiempo real • Radio ${_appState.nearbyRadiusKm.toInt()} km',
-                    style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.muted,
+                    ),
                   ),
                 ],
               ),
@@ -805,7 +852,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                 ),
                 IconButton(
                   tooltip: 'Actualizar GPS y técnicos',
-                  icon: const Icon(Icons.my_location, color: AppColors.secondary),
+                  icon: const Icon(
+                    Icons.my_location,
+                    color: AppColors.secondary,
+                  ),
                   onPressed: _detectLocationAndFetchNearby,
                 ),
               ],
@@ -848,7 +898,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
         if (_showMap) ...[
           ChambaInteractiveMap(
             height: 210,
-            initialCenter: LatLng(_appState.userLatitude, _appState.userLongitude),
+            initialCenter: LatLng(
+              _appState.userLatitude,
+              _appState.userLongitude,
+            ),
             nearbyWorkers: nearbyWorkers,
             onWorkerTap: (worker) {
               Navigator.of(context).push(
@@ -876,12 +929,20 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                 SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.secondary),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.secondary,
+                  ),
                 ),
                 SizedBox(width: 14),
-                Text(
-                  'Buscando especialistas con PostGIS...',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.neutral),
+                Flexible(
+                  child: Text(
+                    'Buscando especialistas cercanos...',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutral,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -894,20 +955,28 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
             decoration: BoxDecoration(
               color: AppColors.sosRedLight,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.sosRed.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.sosRed.withValues(alpha: 0.3),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.wifi_off_rounded, color: AppColors.sosRed, size: 20),
+                    Icon(
+                      Icons.wifi_off_rounded,
+                      color: AppColors.sosRed,
+                      size: 20,
+                    ),
                     SizedBox(width: 8),
-                    Text(
-                      'No se pudo conectar con el servidor',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.sosRedDark,
+                    Expanded(
+                      child: Text(
+                        'No se pudo conectar con el servidor',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.sosRedDark,
+                        ),
                       ),
                     ),
                   ],
@@ -915,14 +984,19 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                 const SizedBox(height: 6),
                 Text(
                   'Verifica que el backend esté encendido en http://localhost:3000.',
-                  style: AppTypography.labelSm.copyWith(color: AppColors.neutral),
+                  style: AppTypography.labelSm.copyWith(
+                    color: AppColors.neutral,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.sosRed,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                   ),
                   icon: const Icon(Icons.refresh, size: 16),
                   label: const Text('Reintentar búsqueda'),
@@ -943,7 +1017,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
             ),
             child: Column(
               children: [
-                const Icon(Icons.person_search_outlined, size: 44, color: AppColors.muted),
+                const Icon(
+                  Icons.person_search_outlined,
+                  size: 44,
+                  color: AppColors.muted,
+                ),
                 const SizedBox(height: 10),
                 Text(
                   'No hay técnicos disponibles en este radio',
@@ -1033,7 +1111,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                                 if (!isReal) ...[
                                   const SizedBox(width: 6),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1.5,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceContainer,
                                       borderRadius: BorderRadius.circular(4),
@@ -1067,15 +1148,22 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                               (worker.skills as List).take(2).join(' • '),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTypography.labelMd.copyWith(color: AppColors.muted),
+                              style: AppTypography.labelMd.copyWith(
+                                color: AppColors.muted,
+                              ),
                             ),
                           ),
                           if (distance != null) ...[
                             const SizedBox(width: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: AppColors.secondary.withValues(alpha: 0.12),
+                                color: AppColors.secondary.withValues(
+                                  alpha: 0.12,
+                                ),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -1107,7 +1195,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                               ' (${worker.completedJobs} chambas)',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTypography.labelSm.copyWith(color: AppColors.muted),
+                              style: AppTypography.labelSm.copyWith(
+                                color: AppColors.muted,
+                              ),
                             ),
                           ),
                           const Spacer(),
@@ -1116,7 +1206,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                                 ? 'Tarifa a convenir'
                                 : 'S/. ${worker.baseRate.toInt()}/h',
                             style: AppTypography.labelSm.copyWith(
-                              color: isReal ? AppColors.secondary : AppColors.neutral,
+                              color: isReal
+                                  ? AppColors.secondary
+                                  : AppColors.neutral,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1177,4 +1269,3 @@ class SosRadarPainter extends CustomPainter {
   bool shouldRepaint(covariant SosRadarPainter oldDelegate) =>
       oldDelegate.animationValue != animationValue;
 }
-

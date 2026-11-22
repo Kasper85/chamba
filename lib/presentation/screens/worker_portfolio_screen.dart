@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+
+import 'dart:convert';
+
+import 'add_portfolio_screen.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/chamba_card.dart';
@@ -9,127 +13,28 @@ import '../state/app_state.dart';
 class WorkerPortfolioScreen extends StatefulWidget {
   final AppState appState;
 
-  const WorkerPortfolioScreen({
-    super.key,
-    required this.appState,
-  });
+  const WorkerPortfolioScreen({super.key, required this.appState});
 
   @override
   State<WorkerPortfolioScreen> createState() => _WorkerPortfolioScreenState();
 }
 
 class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
-  void _showAddProjectDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0x33202D33),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.workerAccent.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add_photo_alternate_rounded,
-                        color: AppColors.workerAccent,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Nueva Obra al Portafolio',
-                            style: AppTypography.headlineSm.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          Text(
-                            'Sube fotos del Antes y Después para destacar tu trabajo',
-                            style: AppTypography.labelSm.copyWith(color: AppColors.muted),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0x1F173B4D)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Cámara y Galería de Chiclayo',
-                        style: AppTypography.labelLg.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.neutral,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'En el siguiente módulo podrás tomar fotos directas desde la app y añadir etiquetas de materiales utilizados.',
-                        style: AppTypography.labelSm.copyWith(color: AppColors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ChambaButton(
-                  label: 'Simular Carga de Fotos (Demo)',
-                  leadingIcon: Icons.cloud_upload_outlined,
-                  backgroundColor: AppColors.workerAccent,
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('📸 Función de carga demostrativa registrada.'),
-                        backgroundColor: AppColors.workerAccent,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
+  Widget _photo(String url) => url.startsWith('data:image/')
+      ? Image.memory(base64Decode(url.split(',').last), fit: BoxFit.cover)
+      : Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) =>
+              const Center(child: Icon(Icons.broken_image_outlined)),
         );
-      },
+  Future<void> _showAddProjectDialog() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddPortfolioScreen(appState: widget.appState),
+      ),
     );
+    if (saved == true && mounted) setState(() {});
   }
 
   @override
@@ -151,7 +56,10 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_photo_alternate_outlined, color: AppColors.workerAccent),
+            icon: const Icon(
+              Icons.add_photo_alternate_outlined,
+              color: AppColors.workerAccent,
+            ),
             tooltip: 'Agregar obra',
             onPressed: _showAddProjectDialog,
           ),
@@ -170,7 +78,11 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                         color: AppColors.surfaceContainer,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.photo_library_outlined, size: 48, color: AppColors.muted),
+                      child: const Icon(
+                        Icons.photo_library_outlined,
+                        size: 48,
+                        color: AppColors.muted,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -184,7 +96,9 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                     Text(
                       'Sube fotos del antes y después de tus servicios para inspirar confianza a los clientes de Chiclayo.',
                       textAlign: TextAlign.center,
-                      style: AppTypography.bodyMd.copyWith(color: AppColors.muted),
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.muted,
+                      ),
                     ),
                     const SizedBox(height: 20),
                     ChambaButton.pill(
@@ -222,7 +136,9 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: AppColors.workerAccent.withValues(alpha: 0.12),
+                              color: AppColors.workerAccent.withValues(
+                                alpha: 0.12,
+                              ),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -256,7 +172,10 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.workerSurfaceContainer,
                               borderRadius: BorderRadius.circular(8),
@@ -297,9 +216,14 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
-                                color: AppColors.workerAccent.withValues(alpha: 0.12),
+                                color: AppColors.workerAccent.withValues(
+                                  alpha: 0.12,
+                                ),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -318,6 +242,8 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                         // Interactive Before/After slider
                         BeforeAfterSlider(
                           caseData: caseItem,
+                          beforeChild: _photo(caseItem.beforeImageUrl),
+                          afterChild: _photo(caseItem.afterImageUrl),
                           height: 220,
                         ),
                         const SizedBox(height: 12),
@@ -336,7 +262,10 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFFEE2E2),
                                       borderRadius: BorderRadius.circular(4),
@@ -363,13 +292,19 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              const Divider(height: 1, color: Color(0x1F202D33)),
+                              const Divider(
+                                height: 1,
+                                color: Color(0x1F202D33),
+                              ),
                               const SizedBox(height: 8),
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFDCFCE7),
                                       borderRadius: BorderRadius.circular(4),
@@ -401,38 +336,47 @@ class _WorkerPortfolioScreenState extends State<WorkerPortfolioScreen> {
                         const SizedBox(height: 10),
 
                         // Metadata info (time, cost)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.timer_outlined, size: 15, color: AppColors.muted),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Tiempo: ${caseItem.timeSpent}',
-                                  style: AppTypography.labelSm.copyWith(
+                        if (caseItem.cost > 0 || caseItem.timeSpent.isNotEmpty)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.timer_outlined,
+                                    size: 15,
                                     color: AppColors.muted,
-                                    fontSize: 11,
                                   ),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                const Icon(Icons.payments_outlined, size: 15, color: AppColors.muted),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Tarifa: S/. ${caseItem.cost.toStringAsFixed(0)}',
-                                  style: AppTypography.labelSm.copyWith(
-                                    color: AppColors.secondary,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 11,
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Tiempo: ${caseItem.timeSpent}',
+                                    style: AppTypography.labelSm.copyWith(
+                                      color: AppColors.muted,
+                                      fontSize: 11,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.payments_outlined,
+                                    size: 15,
+                                    color: AppColors.muted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Tarifa: S/. ${caseItem.cost.toStringAsFixed(0)}',
+                                    style: AppTypography.labelSm.copyWith(
+                                      color: AppColors.secondary,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ),

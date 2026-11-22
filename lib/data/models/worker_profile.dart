@@ -15,6 +15,18 @@ class WorkerReview {
 }
 
 class BeforeAfterCase {
+  factory BeforeAfterCase.fromJson(Map<String, dynamic> json) =>
+      BeforeAfterCase(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        category: json['category'] as String? ?? '',
+        beforeDescription: json['beforeDescription'] as String? ?? '',
+        afterDescription: json['afterDescription'] as String? ?? '',
+        beforeImageUrl: json['beforeImageUrl'] as String,
+        afterImageUrl: json['afterImageUrl'] as String,
+        timeSpent: json['timeSpent'] as String? ?? '',
+        cost: (json['cost'] as num?)?.toDouble() ?? 0,
+      );
   final String id;
   final String title;
   final String category;
@@ -121,7 +133,8 @@ class WorkerProfile {
       skillsList.add(specialty.trim());
     }
 
-    final district = (json['workerDistrict'] as String?)?.trim() ??
+    final district =
+        (json['workerDistrict'] as String?)?.trim() ??
         (json['userDistrict'] as String?)?.trim() ??
         'Chiclayo';
 

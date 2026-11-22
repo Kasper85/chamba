@@ -3,9 +3,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { RedisIoAdapter } from './events/adapters/redis-io.adapter.js';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { PrivateIdentityInterceptor } from './worker-profile/private-identity.interceptor.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useBodyParser('json', { limit: '2mb' });
+  app.useGlobalInterceptors(new PrivateIdentityInterceptor());
 
   // Prefijo global de API versionada
   app.setGlobalPrefix('api/v1');

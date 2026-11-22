@@ -125,6 +125,23 @@ La tarifa de servicio (S/ 2) se reembolsa en toda cancelación.
 
 ## 7. Pantallas y botones
 
+### Identidad compartida, audios y mapas (2026-11-17)
+- Una identidad users para cliente y trabajador; worker_profiles conserva solo información profesional opcional. No crear usuarios duplicados al cambiar de rol. Faltantes personales null y formularios vacíos, sin datos de prueba; números profesionales sin seleccionar permanecen null.
+- Chat: audios AAC de hasta 30 segundos/200 KB, permiso RECORD_AUDIO al grabar, cancelar/enviar/reproducir/detener, mismos identificadores idempotentes y eliminación temporal que los textos. Ampliar POST messages con audioBase64/audioDurationSeconds opcionales; sin dependencias nuevas, grabación y reproducción nativas Android.
+- Mapa del trabajador: permitir arrastrar, gesto de zoom y botones +/- en seguimiento y ofertas, sin modificar el marcador ni el acceso a direcciones privadas.
+
+### Persistencia de perfil y cámara aprobadas (2026-11-17)
+- Guardar DNI privado, tarifa, radio, experiencia y todas las especialidades en worker_profiles; mostrarlos solo desde datos persistidos. No asignar experiencia ficticia al crear cuenta.
+- Ampliar PUT /worker-profile/me con estos campos opcionales validados; DNI no se expone en respuestas públicas.
+- POST /worker-profile/me/portfolio agrega obra con dos fotos JPEG comprimidas, título y descripciones; máximo 5 obras, 500 KB por foto, almacenamiento local en PostgreSQL sin servicios externos nuevos.
+- Cámara mediante permiso Android solicitado al usar la función; denegar impide abrir cámara, bloqueo ofrece Ajustes; galería usa selector nativo sin permiso de acceso general a archivos. Aplicar al portafolio y fotos de solicitudes.
+
+### Chat temporal aprobado (2026-11-17)
+- Una conversación por solicitud entre cliente y trabajador asignado. Solo participantes autenticados pueden leer, enviar o confirmar recepción.
+- Mensajes persistentes durante el servicio; conservar durante disputa abierta/en revisión; borrar al completar/cancelar/reembolsar sin disputa abierta o al resolver la disputa. El recibo conserva precio, servicio y fecha independientemente.
+- Envío idempotente por identificador de cliente; estados Enviando, Enviado, Entregado y Reintentar; aviso discreto de cierre y bloqueo de envío al finalizar.
+- Contratos nuevos: GET/POST /api/v1/jobs/:jobId/messages y POST /api/v1/jobs/:jobId/messages/delivered. Sin dependencias nuevas. Actualización por consulta periódica mientras el chat está abierto.
+
 ### Cliente
 | Pantalla | Debe tener | Botones → destino |
 |---|---|---|
@@ -280,6 +297,9 @@ La Bitácora de este archivo (§10) guarda solo una línea por loop: fecha · lo
 - Resolución automática de disputas por IA.
 
 ## 10. Bitácora
+- 2026-11-17 · Identidad compartida, voz y mapa trabajador · 16 pruebas Flutter y 19 backend relacionadas aprobadas; análisis limpio y APK compilado; detalle en registro ODD.
+- 2026-11-17 · Perfil técnico persistente y cámara · migración aditiva aplicada; 13 pruebas Flutter y 5 backend aprobadas; APK debug compilado; detalle en registro ODD.
+- 2026-11-17 · Chat temporal aprobado · migración aplicada; pruebas backend de chat/ciclo de vida/servicios y Flutter relacionadas aprobadas; detalle en odd/tasks/flujo-v2-registro.md.
 <!-- Antigravity: agregar una línea por loop cerrado: fecha · loop · resultado de tests · evidencia -->
 - 2026-11-09 · L0 (Estabilidad y limpieza) · flutter analyze limpio (0 issues), flutter test 58 passed · odd/evidence/l0/ (01_client_home.png a 05_worker_after_10_switches.png)
 - 2026-11-09 · L1 (Modelo y máquina de estados) · flutter analyze limpio (0 issues), flutter test 62 passed, npm test 36 passed · odd/evidence/l1/ (01_requests_screen_states.png, 02_worker_jobs_screen_states.png)

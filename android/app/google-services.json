@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "453779337240",
+    "project_id": "chamba-ef1ab",
+    "storage_bucket": "chamba-ef1ab.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453779337240:android:791d65e4ed85df8941136d",
+        "android_client_info": {
+          "package_name": "pe.chamba.chamba"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "453779337240-niq1raoo5j946j310mgv21orcbkc633i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "pe.chamba.chamba",
+            "certificate_hash": "415674ef2d912cbdbdb1aa4a63f99a1d195d2327"
+          }
+        },
+        {
+          "client_id": "453779337240-oqfhfbhqn8l7l8i05fjc03r41iscn7nh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMmWReWdypXI5xXD18Fj_loSA3QcsGiCA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "453779337240-oqfhfbhqn8l7l8i05fjc03r41iscn7nh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

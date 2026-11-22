@@ -6,11 +6,18 @@ import '../../core/widgets/chamba_button.dart';
 import '../../core/widgets/chamba_badge.dart';
 import '../state/app_state.dart';
 import 'app_shell_gate.dart';
+import 'create_worker_profile_screen.dart';
+import 'complete_client_profile_screen.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
   final AppState? appState;
+  final bool completeProfile;
 
-  const RoleSelectionScreen({super.key, this.appState});
+  const RoleSelectionScreen({
+    super.key,
+    this.appState,
+    this.completeProfile = false,
+  });
 
   @override
   State<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
@@ -138,10 +145,19 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                         onPressed: () {
                           final state = widget.appState ?? AppState();
                           state.switchRole(_selectedRole);
+                          final destination = !widget.completeProfile
+                              ? AppShellGate(appState: state)
+                              : isClient
+                              ? CompleteClientProfileScreen(
+                                  appState: state,
+                                  isRegistration: true,
+                                )
+                              : CreateWorkerProfileScreen(
+                                  appState: state,
+                                  isRegistration: true,
+                                );
                           Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (_) => AppShellGate(appState: state),
-                            ),
+                            MaterialPageRoute(builder: (_) => destination),
                             (route) => false,
                           );
                         },

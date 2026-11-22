@@ -387,7 +387,7 @@ class _SendBidScreenState extends State<SendBidScreen> with SingleTickerProvider
                 height: 180,
                 isSos: widget.job.isSos,
                 initialCenter: LatLng(widget.job.latitude, widget.job.longitude),
-                isInteractive: false,
+                isInteractive: true,
               ),
               const SizedBox(height: 20),
 

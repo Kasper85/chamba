@@ -157,7 +157,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     // Trust pills
                     _buildTrustRow(
                       Icons.verified_user_outlined,
-                      '100% Técnicos verificados con DNI y antecedentes',
+                      'Técnicos con perfiles y calificaciones visibles',
                     ),
                     const SizedBox(height: 12),
                     _buildTrustRow(

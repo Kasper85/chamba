@@ -111,8 +111,8 @@ class WorkerProfileScreen extends StatelessWidget {
                       _buildVerificationRow(
                         Icons.credit_card,
                         'DNI Registrado',
-                        profile.dni.isNotEmpty ? profile.dni : '72384910',
-                        isVerified: true,
+                        profile.dni.isNotEmpty ? profile.dni : 'No registrado',
+                        isVerified: profile.dni.isNotEmpty,
                       ),
                       const Divider(height: 16, color: Color(0x1F202D33)),
                       _buildVerificationRow(
@@ -127,7 +127,7 @@ class WorkerProfileScreen extends StatelessWidget {
                         Icons.gavel_rounded,
                         'Antecedentes Policiales PNP',
                         'Declaración jurada de buena conducta registrada',
-                        isVerified: true,
+                        isVerified: false,
                       ),
                     ],
                   ),
@@ -379,7 +379,7 @@ class WorkerProfileScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              profile.district.isNotEmpty ? profile.district : 'Chiclayo',
+                              profile.district.isNotEmpty ? profile.district : 'Distrito sin indicar',
                               style: AppTypography.labelSm.copyWith(color: AppColors.muted),
                             ),
                             const SizedBox(height: 4),
@@ -537,7 +537,7 @@ class WorkerProfileScreen extends StatelessWidget {
               context,
               icon: Icons.verified_user_outlined,
               title: 'Verificación de Identidad',
-              subtitle: 'Validación de DNI y antecedentes en Chiclayo',
+              subtitle: 'Información de identidad del técnico',
               onTap: () => _showIdentityVerificationModal(context),
             ),
             _buildOptionTile(

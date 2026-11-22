@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+
 import 'api_client.dart';
 
 class EventsSocketService {
@@ -10,18 +12,24 @@ class EventsSocketService {
 
   final _connectionController = StreamController<bool>.broadcast();
   final _newBidController = StreamController<Map<String, dynamic>>.broadcast();
-  final _counterOfferController = StreamController<Map<String, dynamic>>.broadcast();
-  final _bidAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
-  final _newJobAvailableController = StreamController<Map<String, dynamic>>.broadcast();
+  final _counterOfferController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _bidAcceptedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _newJobAvailableController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   EventsSocketService({required this.apiClient});
 
   bool get isConnected => _isConnected;
   Stream<bool> get onConnectionChange => _connectionController.stream;
   Stream<Map<String, dynamic>> get onNewBidReceived => _newBidController.stream;
-  Stream<Map<String, dynamic>> get onCounterOfferReceived => _counterOfferController.stream;
-  Stream<Map<String, dynamic>> get onBidAccepted => _bidAcceptedController.stream;
-  Stream<Map<String, dynamic>> get onNewJobAvailable => _newJobAvailableController.stream;
+  Stream<Map<String, dynamic>> get onCounterOfferReceived =>
+      _counterOfferController.stream;
+  Stream<Map<String, dynamic>> get onBidAccepted =>
+      _bidAcceptedController.stream;
+  Stream<Map<String, dynamic>> get onNewJobAvailable =>
+      _newJobAvailableController.stream;
 
   /// Inicializa la conexión Socket.IO con el token JWT en el handshake
   void connect(String token) {
@@ -37,6 +45,8 @@ class EventsSocketService {
     _socket = io.io(
       socketUrl,
       io.OptionBuilder()
+          .disableAutoConnect()
+          .enableForceNew()
           .setTransports(['websocket', 'polling'])
           .enableReconnection()
           .setReconnectionDelay(1000)
@@ -100,6 +110,7 @@ class EventsSocketService {
 
   void disconnect() {
     if (_socket != null) {
+      _socket!.io.disconnect();
       _socket!.dispose();
       _socket = null;
     }
@@ -139,12 +150,20 @@ class EventsSocketService {
         'amount': amount,
       };
       if (message != null) payload['message'] = message;
-      if (estimatedArrival != null) payload['estimatedArrival'] = estimatedArrival;
-      if (includesMaterials != null) payload['includesMaterials'] = includesMaterials;
+      if (estimatedArrival != null) {
+        payload['estimatedArrival'] = estimatedArrival;
+      }
+      if (includesMaterials != null) {
+        payload['includesMaterials'] = includesMaterials;
+      }
       if (inclusionTags != null) payload['inclusionTags'] = inclusionTags;
       if (hasVoiceNote != null) payload['hasVoiceNote'] = hasVoiceNote;
-      if (voiceDurationSeconds != null) payload['voiceDurationSeconds'] = voiceDurationSeconds;
-      if (voiceTranscriptPreview != null) payload['voiceTranscriptPreview'] = voiceTranscriptPreview;
+      if (voiceDurationSeconds != null) {
+        payload['voiceDurationSeconds'] = voiceDurationSeconds;
+      }
+      if (voiceTranscriptPreview != null) {
+        payload['voiceTranscriptPreview'] = voiceTranscriptPreview;
+      }
 
       _socket!.emit('sendBid', payload);
     }

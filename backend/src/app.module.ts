@@ -15,6 +15,7 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { DisputesModule } from './disputes/disputes.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { ChatModule } from './chat/chat.module.js';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { AppService } from './app.service.js';
     LocationModule,
     JobsModule,
     DisputesModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
